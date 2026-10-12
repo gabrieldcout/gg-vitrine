@@ -7,6 +7,7 @@ export const PANEL_NAV = [
   { to: '/painel/horarios', label: 'Horários', icon: 'clock' },
   { to: '/painel/clientes', label: 'Clientes', icon: 'contact' },
   { to: '/painel/bloqueios', label: 'Folgas e bloqueios', icon: 'ban' },
+  { to: '/painel/financeiro', label: 'Financeiro', icon: 'chart' },
   { to: '/painel/lembretes', label: 'Lembretes', icon: 'bell', feature: 'lembretes' },
   { to: '/painel/galeria', label: 'Galeria', icon: 'image', feature: 'galeria' },
   { to: '/painel/avaliacoes', label: 'Avaliações', icon: 'star', feature: 'avaliacoes' },

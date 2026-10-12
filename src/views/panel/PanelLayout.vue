@@ -45,7 +45,7 @@ const showShareBar = computed(() =>
 // só distribui em "seções" pra dar hierarquia na sidebar. A ordem dentro
 // de cada grupo segue o PANEL_NAV original.
 const NAV_GROUPS = [
-  { title: 'Agenda', match: ['/painel', '/painel/servicos', '/painel/profissionais', '/painel/horarios', '/painel/clientes', '/painel/bloqueios'] },
+  { title: 'Agenda', match: ['/painel', '/painel/servicos', '/painel/profissionais', '/painel/horarios', '/painel/clientes', '/painel/bloqueios', '/painel/financeiro'] },
   { title: 'Divulgar', match: ['/painel/lembretes', '/painel/galeria', '/painel/avaliacoes', '/painel/fidelidade', '/painel/cupons', '/painel/divulgar'] },
   { title: 'Conta', match: ['/painel/perfil', '/painel/assinatura'] },
 ]

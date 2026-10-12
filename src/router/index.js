@@ -18,6 +18,7 @@ const routes = [
       { path: 'horarios', component: () => import('@/views/panel/Hours.vue') },
       { path: 'clientes', component: () => import('@/views/panel/Customers.vue') },
       { path: 'bloqueios', component: () => import('@/views/panel/TimeOff.vue') },
+      { path: 'financeiro', component: () => import('@/views/panel/Dashboard.vue') },
       { path: 'galeria', component: () => import('@/views/panel/Gallery.vue') },
       { path: 'avaliacoes', component: () => import('@/views/panel/Reviews.vue') },
       { path: 'fidelidade', component: () => import('@/views/panel/Loyalty.vue') },
