@@ -111,7 +111,7 @@ async function logout() {
 }
 
 // Cadastro pelo painel, para quem criou a conta sem os dados do estabelecimento.
-const form = ref({ name: '', slug: '', category: CATEGORIES[0], phone: '' })
+const form = ref({ name: '', slug: '', category: '', phone: '' })
 const formError = ref('')
 watch(() => form.value.name, (n) => { form.value.slug = slugify(n) })
 async function requestBusiness() {
@@ -172,7 +172,10 @@ async function requestBusiness() {
         <div class="row">
           <div class="field">
             <label><Icon name="tag" />Segmento</label>
-            <select v-model="form.category"><option v-for="c in CATEGORIES" :key="c">{{ c }}</option></select>
+            <select v-model="form.category" required>
+              <option value="" disabled>Escolha o segmento</option>
+              <option v-for="c in CATEGORIES" :key="c" :value="c">{{ c }}</option>
+            </select>
           </div>
           <div class="field">
             <label><Icon name="whatsapp" />WhatsApp</label>

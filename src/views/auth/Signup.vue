@@ -9,7 +9,7 @@ import Icon from '@/components/Icon.vue'
 import { APP_DOMAIN, CATEGORIES } from '@/config/brand'
 
 const router = useRouter()
-const form = ref({ name: '', slug: '', category: CATEGORIES[0], phone: '', ownerName: '', email: '', password: '', accepted: false })
+const form = ref({ name: '', slug: '', category: '', phone: '', ownerName: '', email: '', password: '', accepted: false })
 
 const slugTouched = ref(false)
 const error = ref('')
@@ -212,9 +212,10 @@ function startResendCooldown() {
           </div>
 
           <div class="field-grid">
-            <div class="float-field filled">
-              <select id="cat" v-model="form.category">
-                <option v-for="c in CATEGORIES" :key="c">{{ c }}</option>
+            <div class="float-field" :class="{ filled: form.category }">
+              <select id="cat" v-model="form.category" required>
+                <option value="" disabled>Escolha o segmento</option>
+                <option v-for="c in CATEGORIES" :key="c" :value="c">{{ c }}</option>
               </select>
               <label for="cat">
                 <Icon name="tag" />
