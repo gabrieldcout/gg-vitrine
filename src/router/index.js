@@ -28,6 +28,7 @@ const routes = [
       { path: 'perfil', component: () => import('@/views/panel/Profile.vue') },
       { path: 'assinatura', component: () => import('@/views/panel/Subscription.vue') },
       { path: 'comecar', component: () => import('@/views/panel/Onboarding.vue') },
+      { path: 'tutorial', component: () => import('@/views/panel/Tutorial.vue') },
     ],
   },
   {

@@ -82,7 +82,7 @@ async function uploadLogoFile(file) {
     error.value = 'A logo precisa ser PNG, JPG ou WEBP.'
     return
   }
-  if (file.size > 2 * 1024 * 1024) { error.value = 'A logo precisa ter no máximo 2 MB.'; return }
+  if (file.size > 10 * 1024 * 1024) { error.value = 'A logo precisa ter no máximo 10 MB.'; return }
   uploading.value = true
   error.value = ''
   const ext = file.name.split('.').pop().toLowerCase()
@@ -102,6 +102,11 @@ function onFileChange(event) {
 function onDrop(event) {
   dragOver.value = false
   uploadLogoFile(event.dataTransfer.files?.[0])
+}
+
+function removeLogo() {
+  if (!confirm('Remover a logo?')) return
+  form.value.logo_url = null
 }
 
 async function changePassword() {
@@ -191,6 +196,10 @@ async function changePassword() {
         <input ref="fileInput" type="file" accept="image/png,image/jpeg,image/webp" hidden @change="onFileChange" />
         <div v-if="form.logo_url" class="pf-logo-wrap">
           <img :src="form.logo_url" alt="Logo atual" class="pf-logo" />
+          <button type="button" class="pf-logo-remove" aria-label="Remover logo"
+                  @click.stop="removeLogo">
+            <Icon name="trash" />
+          </button>
           <div class="pf-logo-overlay">
             <Icon name="camera" />
             <span>Trocar logo</span>
@@ -200,7 +209,7 @@ async function changePassword() {
           <span class="pf-dropzone-icon"><Icon name="image" /></span>
           <strong>Enviar logo</strong>
           <small>Arraste aqui ou clique pra escolher</small>
-          <small class="muted">PNG, JPG ou WEBP · até 2 MB</small>
+          <small class="muted">PNG, JPG ou WEBP · até 10 MB</small>
         </div>
         <div v-if="uploading" class="pf-dropzone-loading">Enviando...</div>
       </div>
@@ -493,16 +502,34 @@ async function changePassword() {
   width: 100%; height: 100%;
 }
 .pf-logo { width: 100%; height: 100%; object-fit: cover; display: block; }
-.pf-logo-overlay {
-  position: absolute; inset: 0;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
-  background: rgba(5, 11, 22, 0.65);
-  color: #fff;
-  opacity: 0; transition: opacity 0.2s ease;
+.pf-logo-remove {
+  position: absolute; right: 8px; top: 8px;
+  width: 32px; height: 32px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: rgba(5, 11, 22, 0.85); backdrop-filter: blur(6px);
+  color: var(--danger);
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
-.pf-logo-overlay :deep(svg) { width: 22px; height: 22px; }
-.pf-logo-overlay span { font-size: 0.85rem; font-weight: 700; }
-.pf-dropzone:hover .pf-logo-overlay { opacity: 1; }
+.pf-logo-remove :deep(svg) { width: 15px; height: 15px; }
+.pf-logo-remove:hover { background: var(--danger); color: #fff; border-color: var(--danger); transform: translateY(-2px); }
+
+.pf-logo-overlay {
+  position: absolute; right: 8px; bottom: 8px;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 11px; border-radius: 999px;
+  background: rgba(5, 11, 22, 0.85); backdrop-filter: blur(6px);
+  color: #fff;
+  border: 1px solid var(--brand);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+.pf-logo-overlay :deep(svg) { width: 14px; height: 14px; color: var(--brand-ink); }
+.pf-logo-overlay span { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.02em; }
+.pf-dropzone:hover .pf-logo-overlay { transform: translateY(-2px); background: var(--brand); }
+.pf-dropzone:hover .pf-logo-overlay :deep(svg) { color: #fff; }
 .pf-dropzone-loading {
   position: absolute; inset: 0;
   display: grid; place-items: center;

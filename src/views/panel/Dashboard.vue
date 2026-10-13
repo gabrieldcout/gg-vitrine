@@ -151,15 +151,91 @@ const showProBlock = computed(() => byProfessional.value.length > 1)
 const isEmpty = computed(() => !loading.value && data.value && totalAppts.value === 0)
 
 const periodLabel = computed(() => PERIODS.find((p) => p.key === period.value)?.label ?? '')
+
+// ---------- Lançamento de venda avulsa ----------
+const showSale = ref(false)
+const saleServices = ref([])
+const salePros = ref([])
+const saleForm = ref({
+  service_id: '', professional_id: '', at: '', customer_name: '', customer_phone: '', price: '', notes: '',
+})
+const saleError = ref('')
+const saleMsg = ref('')
+const saleSaving = ref(false)
+
+function nowLocalInput() {
+  const d = new Date()
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+async function openSaleModal() {
+  saleError.value = saleMsg.value = ''
+  // Carrega serviços e profissionais pra escolher.
+  const [{ data: svcs }, { data: pros }] = await Promise.all([
+    supabase.from('services').select('id, name, price').eq('business_id', biz.business.id).eq('active', true).order('name'),
+    supabase.from('professionals').select('id, name').eq('business_id', biz.business.id).eq('active', true).order('name'),
+  ])
+  saleServices.value = svcs ?? []
+  salePros.value = pros ?? []
+  if (!saleServices.value.length) { saleError.value = 'Cadastre pelo menos 1 serviço antes.'; return }
+  if (!salePros.value.length) { saleError.value = 'Cadastre pelo menos 1 profissional antes.'; return }
+  saleForm.value = {
+    service_id: saleServices.value[0].id,
+    professional_id: salePros.value[0].id,
+    at: nowLocalInput(),
+    customer_name: '', customer_phone: '',
+    price: '', notes: '',
+  }
+  showSale.value = true
+}
+
+function onSaleServiceChange() {
+  const s = saleServices.value.find((x) => x.id === saleForm.value.service_id)
+  if (s && !saleForm.value.price) saleForm.value.price = s.price
+}
+
+async function saveSale() {
+  saleError.value = saleMsg.value = ''
+  saleSaving.value = true
+  const f = saleForm.value
+  const atIso = new Date(f.at).toISOString()
+  const { error: err } = await supabase.rpc('register_manual_sale', {
+    p_business: biz.business.id,
+    p_service: f.service_id,
+    p_professional: f.professional_id,
+    p_at: atIso,
+    p_customer_name: f.customer_name,
+    p_customer_phone: f.customer_phone || null,
+    p_price: f.price === '' ? null : Number(f.price),
+    p_notes: f.notes || null,
+  })
+  saleSaving.value = false
+  if (err) { saleError.value = err.message; return }
+  saleMsg.value = 'Venda registrada! Já aparece no faturamento.'
+  showSale.value = false
+  await load()
+}
 </script>
 
 <template>
   <div class="page-header dash-header">
-    <p class="eyebrow dash-eyebrow">Painel financeiro</p>
-    <h1>Dashboard</h1>
-    <p class="muted dash-lede">
-      Veja seu faturamento, agendamentos e os serviços e clientes que te rendem mais.
-    </p>
+    <div>
+      <p class="eyebrow dash-eyebrow">Painel financeiro</p>
+      <h1>Dashboard</h1>
+      <p class="muted dash-lede">
+        Veja seu faturamento, agendamentos e os serviços e clientes que te rendem mais.
+      </p>
+    </div>
+    <button class="btn dash-sale-btn" @click="openSaleModal">
+      <Icon name="plus" />
+      Lançar venda avulsa
+    </button>
+  </div>
+
+  <div v-if="saleMsg" class="alert alert-success" style="margin-bottom: 16px">
+    <span class="alert-icon"><Icon name="check" /></span>
+    <span>{{ saleMsg }}</span>
   </div>
 
   <!-- Filtro de período -->
@@ -378,6 +454,75 @@ const periodLabel = computed(() => PERIODS.find((p) => p.key === period.value)?.
       </ul>
     </section>
   </template>
+
+  <!-- Modal: lançar venda avulsa -->
+  <div v-if="showSale" class="sale-modal-backdrop" @click.self="showSale = false">
+    <form class="sale-modal" @submit.prevent="saveSale">
+      <div class="sale-modal-head">
+        <span class="section-badge"><Icon name="plus" /></span>
+        <div style="flex: 1">
+          <h3 style="margin: 0">Lançar venda avulsa</h3>
+          <small class="muted">Pra atendimentos que não foram feitos pelo link.</small>
+        </div>
+        <button type="button" class="sale-modal-close" @click="showSale = false" aria-label="Fechar">×</button>
+      </div>
+
+      <div v-if="saleError" class="alert alert-danger" style="margin: 0 0 12px">
+        <span class="alert-icon"><Icon name="ban" /></span>
+        <span>{{ saleError }}</span>
+      </div>
+
+      <div class="ff-row">
+        <div class="ff">
+          <select v-model="saleForm.service_id" required @change="onSaleServiceChange">
+            <option v-for="s in saleServices" :key="s.id" :value="s.id">{{ s.name }}</option>
+          </select>
+          <label>Serviço</label>
+        </div>
+        <div class="ff">
+          <select v-model="saleForm.professional_id" required>
+            <option v-for="p in salePros" :key="p.id" :value="p.id">{{ p.name }}</option>
+          </select>
+          <label>Profissional</label>
+        </div>
+      </div>
+
+      <div class="ff-row">
+        <div class="ff">
+          <input v-model="saleForm.at" type="datetime-local" required placeholder=" " />
+          <label>Quando</label>
+        </div>
+        <div class="ff">
+          <input v-model="saleForm.price" type="number" min="0" step="0.01" placeholder=" " />
+          <label>Valor (R$)</label>
+        </div>
+      </div>
+
+      <div class="ff-row">
+        <div class="ff">
+          <input v-model="saleForm.customer_name" required placeholder=" " />
+          <label>Nome do cliente</label>
+        </div>
+        <div class="ff">
+          <input v-model="saleForm.customer_phone" type="tel" placeholder=" " />
+          <label>WhatsApp (opcional)</label>
+        </div>
+      </div>
+
+      <div class="ff">
+        <textarea v-model="saleForm.notes" rows="2" placeholder=" " />
+        <label>Observação (opcional)</label>
+      </div>
+
+      <div class="sale-modal-actions">
+        <button type="button" class="btn secondary" @click="showSale = false">Cancelar</button>
+        <button class="btn" :disabled="saleSaving">
+          <Icon name="check" />
+          {{ saleSaving ? 'Salvando...' : 'Registrar venda' }}
+        </button>
+      </div>
+    </form>
+  </div>
 </template>
 
 <style scoped>
@@ -385,8 +530,50 @@ const periodLabel = computed(() => PERIODS.find((p) => p.key === period.value)?.
    Header
    ===================================================================== */
 .dash-eyebrow { display: inline-block; margin-bottom: 6px; }
+.dash-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .dash-header h1 { font-size: clamp(1.4rem, 2.6vw, 1.9rem); letter-spacing: -0.02em; }
 .dash-lede { font-size: 0.95rem; max-width: 540px; margin: 4px 0 0; }
+.dash-sale-btn { flex-shrink: 0; align-self: center; }
+@media (max-width: 520px) {
+  .dash-sale-btn { width: 100%; }
+}
+
+/* Modal: lançar venda */
+.sale-modal-backdrop {
+  position: fixed; inset: 0; z-index: 90;
+  background: rgba(5, 11, 22, 0.72);
+  backdrop-filter: blur(6px);
+  display: grid; place-items: center;
+  padding: 16px;
+  animation: fadein 0.2s ease;
+}
+@keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+.sale-modal {
+  width: min(560px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 22px;
+  border-radius: var(--radius);
+  background:
+    radial-gradient(ellipse 420px 200px at 100% 0%, var(--brand-soft), transparent 65%),
+    var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow), 0 0 40px rgba(0, 0, 0, 0.5);
+}
+.sale-modal-head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+.sale-modal-close {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--muted); font-size: 1.3rem; line-height: 1;
+  cursor: pointer; transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+.sale-modal-close:hover { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); }
+.sale-modal-actions {
+  display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;
+  padding-top: 16px; border-top: 1px solid var(--border);
+}
+.ff-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 520px) { .ff-row { grid-template-columns: 1fr; } }
 
 /* =====================================================================
    Alertas

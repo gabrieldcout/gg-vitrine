@@ -33,8 +33,25 @@ async function copyLink() {
   setTimeout(() => { copied.value = false }, 2000)
 }
 
-const whatsappShareLink = computed(() => biz.business && publicLink.value &&
-  `https://wa.me/?text=${encodeURIComponent(`Agende um horário com ${biz.business.name}: ${publicLink.value}`)}`)
+const shareText = computed(() => biz.business
+  ? `Agende um horário com ${biz.business.name}: ${publicLink.value}`
+  : '')
+const whatsappShareLink = computed(() => shareText.value &&
+  `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText.value)}`)
+
+async function shareLink(ev) {
+  // Em celular (mobile share API), abre o seletor nativo do SO —
+  // aí dá pra escolher o WhatsApp e cair já no "encaminhar pra alguém".
+  if (navigator.share) {
+    ev?.preventDefault?.()
+    try {
+      await navigator.share({ title: biz.business?.name, text: shareText.value, url: publicLink.value })
+    } catch (e) {
+      // usuário cancelou, não precisa fazer nada
+    }
+  }
+  // No desktop sem share API, deixa o href do <a> abrir o WhatsApp Web.
+}
 
 // Esconde a faixa de divulgação em telas onde ela não faz sentido.
 const HIDE_SHARE_BAR = ['/painel/comecar', '/painel/divulgar', '/painel/assinatura']
@@ -45,9 +62,9 @@ const showShareBar = computed(() =>
 // só distribui em "seções" pra dar hierarquia na sidebar. A ordem dentro
 // de cada grupo segue o PANEL_NAV original.
 const NAV_GROUPS = [
-  { title: 'Agenda', match: ['/painel', '/painel/servicos', '/painel/profissionais', '/painel/horarios', '/painel/clientes', '/painel/bloqueios', '/painel/financeiro'] },
+  { title: 'Agenda', match: ['/painel', '/painel/servicos', '/painel/profissionais', '/painel/horarios', '/painel/clientes', '/painel/bloqueios'] },
   { title: 'Divulgar', match: ['/painel/lembretes', '/painel/galeria', '/painel/avaliacoes', '/painel/fidelidade', '/painel/cupons', '/painel/divulgar'] },
-  { title: 'Conta', match: ['/painel/perfil', '/painel/assinatura'] },
+  { title: 'Conta', match: ['/painel/tutorial', '/painel/financeiro', '/painel/perfil', '/painel/assinatura'] },
 ]
 
 const nav = computed(() => PANEL_NAV.map((item) => ({
@@ -79,7 +96,7 @@ const currentPage = computed(() => nav.value.find((i) => i.to === route.path))
 // Fecha o menu mobile quando trocar de rota.
 watch(() => route.path, () => { mobileNavOpen.value = false })
 
-const FREE_WHEN_INACTIVE = ['/painel/assinatura', '/painel/perfil']
+const FREE_WHEN_INACTIVE = ['/painel/assinatura', '/painel/perfil', '/painel/tutorial']
 
 function enforceAccess() {
   // Bloqueado por atraso também entra no painel, mas só na tela de Assinatura (para pagar).
@@ -347,7 +364,8 @@ async function requestBusiness() {
             <Icon :name="copied ? 'check' : 'copy'" />
             <span>{{ copied ? 'Copiado' : 'Copiar' }}</span>
           </button>
-          <a class="btn small secondary" :href="whatsappShareLink" target="_blank" rel="noopener">
+          <a class="btn small secondary" :href="whatsappShareLink" target="_blank" rel="noopener"
+             @click="shareLink($event)">
             <Icon name="whatsapp" />
             <span>Enviar</span>
           </a>
