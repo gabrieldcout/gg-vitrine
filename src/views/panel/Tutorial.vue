@@ -108,7 +108,7 @@ const sections = [
   {
     icon: 'chart',
     title: 'Financeiro',
-    text: 'Veja quanto faturou no mês, qual serviço mais vende, quais clientes mais gastaram.',
+    text: 'Faturamento do mês, ticket médio, taxa de não-comparecimento, serviços e clientes campeões. Também dá pra lançar vendas feitas fora do link (balcão, pacote, etc) pra manter o controle completo.',
     to: '/painel/financeiro',
   },
   {
@@ -147,6 +147,10 @@ const faqs = [
   {
     q: 'E o cliente que não aparece no horário?',
     a: 'Marca o agendamento como "não compareceu" na agenda. O cliente fica registrado como "não comparecimento" na ficha dele. Com lembretes automáticos ligados, isso cai bastante.',
+  },
+  {
+    q: 'E as vendas que o cliente fez direto comigo, sem agendar pelo link?',
+    a: 'Vai em "Financeiro" e clica em "Lançar venda avulsa". Preenche serviço, profissional, data, cliente e valor — a venda entra no seu faturamento normalmente, como se tivesse sido agendada pelo link. Serve pra atendimentos de balcão, pacotes vendidos, cliente de longa data que avisa por WhatsApp, etc.',
   },
   {
     q: 'A assinatura inclui o quê?',
