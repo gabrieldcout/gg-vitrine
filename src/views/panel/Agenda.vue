@@ -4,6 +4,7 @@ import { supabase, unwrap } from '@/lib/supabase'
 import { useBusiness } from '@/lib/business'
 import { plural, money, formatTime, formatDate, formatDateTime, todayISO, addDaysISO, zonedToUtc, APPOINTMENT_STATUS } from '@/lib/format'
 import { waLink } from '@/lib/whatsapp'
+import { printAppointment, printDay } from '@/lib/print'
 import Icon from '@/components/Icon.vue'
 
 const biz = useBusiness()
@@ -147,10 +148,17 @@ async function createAppointment() {
       <p class="eyebrow agenda-eyebrow">Agenda</p>
       <h1>{{ dayLabel }}</h1>
     </div>
-    <button class="btn agenda-cta" @click="showForm = !showForm">
-      <Icon v-if="!showForm" name="plus" />
-      {{ showForm ? 'Fechar' : 'Novo agendamento' }}
-    </button>
+    <div class="agenda-header-actions">
+      <button v-if="visible.length" class="btn secondary agenda-cta" type="button"
+              @click="printDay(visible, biz.business, dayLabel, dayTotal)">
+        <Icon name="printer" />
+        Imprimir dia
+      </button>
+      <button class="btn agenda-cta" @click="showForm = !showForm">
+        <Icon v-if="!showForm" name="plus" />
+        {{ showForm ? 'Fechar' : 'Novo agendamento' }}
+      </button>
+    </div>
   </div>
 
   <!-- Barra de controles (dia + filtro) -->
@@ -307,6 +315,10 @@ async function createAppointment() {
               <a v-if="biz.hasFeature('lembretes') && reminder(a) && ['scheduled', 'confirmed'].includes(a.status)"
                  class="btn small secondary" :href="reminder(a)" target="_blank" rel="noopener"
                  title="Enviar lembrete pelo WhatsApp">Lembrar</a>
+              <button class="btn small secondary print-btn" type="button" title="Imprimir comprovante"
+                      aria-label="Imprimir comprovante" @click="printAppointment(a, biz.business)">
+                <Icon name="printer" />
+              </button>
             </td>
           </tr>
         </tbody>
@@ -340,6 +352,10 @@ async function createAppointment() {
             </select>
             <a v-if="biz.hasFeature('lembretes') && reminder(a) && ['scheduled', 'confirmed'].includes(a.status)"
                class="btn small secondary" :href="reminder(a)" target="_blank" rel="noopener">Lembrar</a>
+            <button class="btn small secondary print-btn" type="button" title="Imprimir comprovante"
+                    aria-label="Imprimir comprovante" @click="printAppointment(a, biz.business)">
+              <Icon name="printer" />
+            </button>
           </div>
         </div>
       </article>
@@ -361,7 +377,10 @@ async function createAppointment() {
   font-size: clamp(1.4rem, 2.6vw, 1.9rem);
   letter-spacing: -0.02em;
 }
+.agenda-header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .agenda-cta :deep(svg) { width: 16px; height: 16px; }
+.print-btn { display: inline-flex; align-items: center; justify-content: center; }
+.print-btn :deep(svg) { width: 15px; height: 15px; }
 
 /* =====================================================================
    Controles (navegador de dia + filtro)

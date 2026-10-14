@@ -6,7 +6,7 @@ import { slugify } from '@/lib/format'
 import AppLogo from '@/components/AppLogo.vue'
 import BackButton from '@/components/BackButton.vue'
 import Icon from '@/components/Icon.vue'
-import { APP_DOMAIN, CATEGORIES } from '@/config/brand'
+import { APP_DOMAIN, CATEGORIES, MENU_CATEGORIES, kindForCategory } from '@/config/brand'
 
 const router = useRouter()
 const form = ref({ name: '', slug: '', category: CATEGORIES[0], phone: '', cpf: '', ownerName: '', email: '', password: '', accepted: false })
@@ -67,6 +67,7 @@ async function submit() {
           business_name: form.value.name,
           business_slug: slug,
           business_category: form.value.category,
+          business_kind: kindForCategory(form.value.category),
           business_phone: form.value.phone,
           terms_accepted_at: new Date().toISOString(),
         },
@@ -240,7 +241,12 @@ function startResendCooldown() {
           <div class="field-grid">
             <div class="float-field" :class="{ filled: form.category }">
               <select id="cat" v-model="form.category" required>
-                <option v-for="c in CATEGORIES" :key="c" :value="c">{{ c }}</option>
+                <optgroup label="Agendamento">
+                  <option v-for="c in CATEGORIES" :key="c" :value="c">{{ c }}</option>
+                </optgroup>
+                <optgroup label="Cardápio online / pedidos">
+                  <option v-for="c in MENU_CATEGORIES" :key="c" :value="c">{{ c }}</option>
+                </optgroup>
               </select>
               <label for="cat">
                 <Icon name="tag" />

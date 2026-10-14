@@ -11,7 +11,8 @@ const linkShort = computed(() => link.value.replace(/^https?:\/\//, ''))
 const qr = ref('')
 const copied = ref(false)
 const bioCopied = ref(false)
-const cta = 'Agendar'
+const isMenu = computed(() => biz.business.kind === 'cardapio')
+const cta = computed(() => (isMenu.value ? 'Peça' : 'Agende'))
 
 onMounted(async () => {
   qr.value = await QRCode.toDataURL(link.value, {
@@ -32,9 +33,9 @@ async function copyBio() {
   setTimeout(() => { bioCopied.value = false }, 2000)
 }
 
-const shareText = computed(() => `${cta} com ${biz.business.name} pelo link: ${link.value}`)
+const shareText = computed(() => `${cta.value} ${isMenu.value ? 'em' : 'com'} ${biz.business.name} pelo link: ${link.value}`)
 const whatsappShare = computed(() => `https://wa.me/?text=${encodeURIComponent(shareText.value)}`)
-const bioText = computed(() => `${cta} aqui 👇\n${link.value}`)
+const bioText = computed(() => `${cta.value} aqui 👇\n${link.value}`)
 
 const SPOTS = [
   { icon: 'instagram', label: 'Bio do Instagram' },
@@ -55,7 +56,7 @@ function printPoster() {
     <p class="eyebrow sh-eyebrow">Divulgação</p>
     <h1>Divulgar sua vitrine</h1>
     <p class="muted sh-lede">
-      Compartilhe seu link em todo lugar — WhatsApp, Instagram, cartão de visita, cartaz na parede. Quanto mais pessoas virem, mais agendamentos você recebe.
+      Compartilhe seu link em todo lugar — WhatsApp, Instagram, cartão de visita, cartaz na parede. Quanto mais pessoas virem, mais {{ isMenu ? 'pedidos' : 'agendamentos' }} você recebe.
     </p>
   </div>
 
@@ -66,7 +67,7 @@ function printPoster() {
         <span class="section-badge"><Icon name="link" /></span>
         <div>
           <h3>Seu link público</h3>
-          <small class="muted">É o mesmo link pra tudo. Clientes clicam, escolhem o horário e pronto.</small>
+          <small class="muted">É o mesmo link pra tudo. Clientes clicam, {{ isMenu ? 'montam o pedido' : 'escolhem o horário' }} e pronto.</small>
         </div>
       </div>
 

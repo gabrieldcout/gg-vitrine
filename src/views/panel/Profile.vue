@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { supabase } from '@/lib/supabase'
 import { useBusiness } from '@/lib/business'
-import { CATEGORIES, APP_DOMAIN, STAFF_LABELS } from '@/config/brand'
+import { categoriesFor, APP_DOMAIN, STAFF_LABELS } from '@/config/brand'
 import { brandVars } from '@/lib/colors'
 import Icon from '@/components/Icon.vue'
 
@@ -154,7 +154,7 @@ async function changePassword() {
       </div>
       <div class="ff">
         <select id="pf-cat" v-model="form.category" required>
-          <option v-for="c in CATEGORIES" :key="c">{{ c }}</option>
+          <option v-for="c in categoriesFor(biz.business.kind)" :key="c">{{ c }}</option>
         </select>
         <label for="pf-cat">Segmento</label>
       </div>
@@ -285,12 +285,13 @@ async function changePassword() {
             <span class="pf-preview-chip on">10:00</span>
             <span class="pf-preview-chip">11:00</span>
           </div>
-          <div class="pf-preview-cta">Agendar</div>
+          <div class="pf-preview-cta">{{ biz.business.kind === 'cardapio' ? 'Fazer pedido' : 'Agendar' }}</div>
         </div>
       </div>
     </div>
 
     <!-- ======================= Agenda ======================= -->
+    <template v-if="biz.business.kind !== 'cardapio'">
     <div class="section-head pf-section-head-mt">
       <span class="section-badge"><Icon name="calendar" /></span>
       <div>
@@ -312,6 +313,7 @@ async function changePassword() {
         <label for="pf-slot">Intervalo da agenda</label>
       </div>
     </div>
+    </template>
 
     <div class="pf-foot">
       <button class="btn">

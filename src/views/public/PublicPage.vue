@@ -13,6 +13,8 @@ import ReviewsSection from '@/components/public/ReviewsSection.vue'
 import LoyaltySection from '@/components/public/LoyaltySection.vue'
 import Stars from '@/components/public/Stars.vue'
 import AgendaBooking from '@/components/public/AgendaBooking.vue'
+import CatalogOrder from '@/components/public/CatalogOrder.vue'
+import { catalogWord } from '@/config/brand'
 
 // preset: dados prontos (usado pela pré-visualização de desenvolvimento).
 const props = defineProps({ preset: { type: Object, default: null } })
@@ -21,6 +23,9 @@ const business = ref(props.preset)
 const notFound = ref(false)
 
 const brandStyle = computed(() => brandVars(business.value?.primary_color))
+const isMenu = computed(() => business.value?.kind === 'cardapio')
+// O cardápio tem a própria barra fixa (sacola), então o botão "Agendar" fixo é só da agenda.
+const showSticky = computed(() => business.value?.live && !isMenu.value)
 
 // Scroll suave pro bloco de agendamento (sticky CTA do mobile).
 function scrollToBooking() {
@@ -66,7 +71,7 @@ onBeforeUnmount(() => io?.disconnect())
       <div class="biz-cover">
         <div v-if="business.live" class="biz-live-pill">
           <span class="dot" />
-          <span>Agendando online</span>
+          <span>{{ isMenu ? 'Pedidos online' : 'Agendando online' }}</span>
         </div>
         <div class="container biz-cover-inner">
           <!-- espaço reservado — a logo "flutua" sobre a capa -->
@@ -96,12 +101,21 @@ onBeforeUnmount(() => io?.disconnect())
       </div>
     </header>
 
-    <main class="container pub-main" :class="{ 'has-sticky': business.live }">
+    <main class="container pub-main" :class="{ 'has-sticky': showSticky }">
       <div data-pub-reveal class="pub-reveal">
         <LinkButtons :business="business" />
       </div>
 
-      <section id="agendar" class="pub-section space" data-pub-reveal>
+      <section v-if="isMenu" id="pedir" class="pub-section space" data-pub-reveal>
+        <div class="pub-section-head">
+          <span class="eyebrow">{{ catalogWord(business.category) }}</span>
+          <h2>Monte seu pedido</h2>
+        </div>
+        <div class="pub-reveal is-visible">
+          <CatalogOrder :business="business" />
+        </div>
+      </section>
+      <section v-else id="agendar" class="pub-section space" data-pub-reveal>
         <div class="pub-section-head">
           <span class="eyebrow">Agendamento</span>
           <h2>Escolha o melhor horário</h2>
@@ -135,7 +149,7 @@ onBeforeUnmount(() => io?.disconnect())
       </p>
     </main>
 
-    <div v-if="business.live" class="biz-sticky-cta">
+    <div v-if="showSticky" class="biz-sticky-cta">
       <button class="btn large" @click="scrollToBooking">
         <Icon name="calendar" /> Agendar horário
       </button>

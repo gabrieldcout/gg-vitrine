@@ -1,12 +1,15 @@
 <script setup>
 // Pré-visualização da vitrine com dados de exemplo. Só existe em desenvolvimento
-// (npm run dev): /dev/vitrine.
+// (npm run dev): /dev/vitrine (agenda) e /dev/vitrine?tipo=cardapio.
+import { useRoute } from 'vue-router'
 import PublicPage from './PublicPage.vue'
+
+const route = useRoute()
 
 const soon = (days, h) => new Date(Date.now() + days * 86400000 + h * 3600000).toISOString()
 const photo = (seed) => `https://picsum.photos/seed/${seed}/600/600`
 
-const preset = {
+const agenda = {
   id: '00000000-0000-0000-0000-000000000000', slug: 'exemplo', timezone: 'America/Sao_Paulo',
   phone: '(11) 98888-7777', address: 'Rua das Flores, 123 - Centro', logo_url: null, live: true,
   staff_label: 'Profissional', description: 'Atendimento com carinho desde 2015.',
@@ -34,6 +37,24 @@ const preset = {
     { id: 'p2', name: 'Léo', photo_url: null, service_ids: ['s1'] },
   ],
 }
+
+const allHours = [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({ weekday, start: '00:00:00', end: '23:59:00' }))
+const cardapio = {
+  ...agenda, kind: 'cardapio', name: 'Lanchonete do Beto', category: 'Lanchonete', primary_color: '#dc2626',
+  loyalty: { required: 8, reward: '1 lanche grátis' }, services: [], professionals: [],
+  store: { accepting_orders: true, open_now: true, pickup_enabled: true, delivery_enabled: true, delivery_fee: 7, min_order: 30, delivery_area: 'Centro e Vila Nova', hours: allHours },
+  menu: [
+    { id: 'c1', name: 'Lanches', items: [
+      { id: 'i1', name: 'X-burguer', description: 'Pão, hambúrguer 150g, queijo, alface e tomate.', price: 28, photo_url: photo('burger'), available: true },
+      { id: 'i2', name: 'X-bacon', description: null, price: 32, photo_url: null, available: false },
+    ] },
+    { id: 'c2', name: 'Bebidas', items: [
+      { id: 'i3', name: 'Refrigerante lata', description: null, price: 6, photo_url: null, available: true },
+    ] },
+  ],
+}
+
+const preset = route.query.tipo === 'cardapio' ? cardapio : agenda
 </script>
 
 <template>

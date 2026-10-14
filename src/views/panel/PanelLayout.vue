@@ -5,13 +5,13 @@ import { supabase } from '@/lib/supabase'
 import { signOut, isPlatformAdmin } from '@/lib/session'
 import { createBusinessContext, provideKey } from '@/lib/business'
 import { slugify } from '@/lib/format'
-import { APP_NAME, APP_DOMAIN, CATEGORIES, SUPPORT_WHATSAPP } from '@/config/brand'
+import { APP_NAME, APP_DOMAIN, CATEGORIES, MENU_CATEGORIES, SUPPORT_WHATSAPP, kindForCategory } from '@/config/brand'
 import { waLink } from '@/lib/whatsapp'
 import { brandVars } from '@/lib/colors'
 import AppLogo from '@/components/AppLogo.vue'
 import Icon from '@/components/Icon.vue'
 import BackButton from '@/components/BackButton.vue'
-import { PANEL_NAV, PANEL_HOME, routeAllowed } from '@/lib/panel-nav'
+import { navFor, homeFor, routeAllowed } from '@/lib/panel-nav'
 
 const route = useRoute()
 const router = useRouter()
@@ -33,9 +33,15 @@ async function copyLink() {
   setTimeout(() => { copied.value = false }, 2000)
 }
 
-const shareText = computed(() => biz.business
-  ? `Agende um horário com ${biz.business.name}: ${publicLink.value}`
-  : '')
+const kind = computed(() => biz.business?.kind ?? 'agenda')
+const panelHome = computed(() => homeFor(kind.value))
+
+const shareText = computed(() => {
+  if (!biz.business) return ''
+  return kind.value === 'cardapio'
+    ? `Faça seu pedido em ${biz.business.name}: ${publicLink.value}`
+    : `Agende um horário com ${biz.business.name}: ${publicLink.value}`
+})
 const whatsappShareLink = computed(() => shareText.value &&
   `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText.value)}`)
 
@@ -63,11 +69,12 @@ const showShareBar = computed(() =>
 // de cada grupo segue o PANEL_NAV original.
 const NAV_GROUPS = [
   { title: 'Agenda', match: ['/painel', '/painel/servicos', '/painel/profissionais', '/painel/horarios', '/painel/clientes', '/painel/bloqueios'] },
+  { title: 'Loja', match: ['/painel/pedidos', '/painel/cardapio', '/painel/funcionamento'] },
   { title: 'Divulgar', match: ['/painel/lembretes', '/painel/galeria', '/painel/avaliacoes', '/painel/fidelidade', '/painel/cupons', '/painel/divulgar'] },
   { title: 'Conta', match: ['/painel/tutorial', '/painel/financeiro', '/painel/perfil', '/painel/assinatura'] },
 ]
 
-const nav = computed(() => PANEL_NAV.map((item) => ({
+const nav = computed(() => navFor(kind.value).map((item) => ({
   ...item,
   label: item.staffLabel && biz.business?.staff_label && biz.business.staff_label !== 'Profissional'
     ? `${biz.business.staff_label}s` : item.label,
@@ -107,12 +114,14 @@ function enforceAccess() {
     router.replace('/painel/assinatura')
     return
   }
-  // Primeira vez após assinar: manda pro onboarding escolher template.
-  if (biz.live && !biz.business.onboarding_done && route.path !== '/painel/comecar') {
+  // Primeira vez após assinar: manda pro onboarding escolher template (só agenda;
+  // o cardápio começa direto em Produtos).
+  if (biz.live && kind.value === 'agenda' && !biz.business.onboarding_done && route.path !== '/painel/comecar') {
     router.replace('/painel/comecar')
     return
   }
-  if (!routeAllowed(route.path) && route.path !== '/painel/comecar') router.replace(PANEL_HOME)
+  const onboarding = route.path === '/painel/comecar' && kind.value === 'agenda'
+  if (!routeAllowed(route.path, kind.value) && !onboarding) router.replace(panelHome.value)
 }
 watch(() => [route.path, biz.loading], enforceAccess)
 
@@ -136,6 +145,7 @@ async function requestBusiness() {
   const { error } = await supabase.rpc('request_business', {
     p_name: form.value.name, p_slug: slugify(form.value.slug),
     p_category: form.value.category, p_phone: form.value.phone,
+    p_kind: kindForCategory(form.value.category),
   })
   if (error) formError.value = error.message
   else await biz.reload()
@@ -191,7 +201,12 @@ async function requestBusiness() {
             <label><Icon name="tag" />Segmento</label>
             <select v-model="form.category" required>
               <option value="" disabled>Escolha o segmento</option>
-              <option v-for="c in CATEGORIES" :key="c" :value="c">{{ c }}</option>
+              <optgroup label="Agendamento">
+                <option v-for="c in CATEGORIES" :key="c" :value="c">{{ c }}</option>
+              </optgroup>
+              <optgroup label="Cardápio online / pedidos">
+                <option v-for="c in MENU_CATEGORIES" :key="c" :value="c">{{ c }}</option>
+              </optgroup>
             </select>
           </div>
           <div class="field">
@@ -394,7 +409,7 @@ async function requestBusiness() {
       </div>
 
       <div class="main-topbar">
-        <BackButton v-if="route.path !== PANEL_HOME" :fallback="PANEL_HOME" />
+        <BackButton v-if="route.path !== panelHome" :fallback="panelHome" />
         <nav v-else class="main-crumbs" aria-hidden="true">
           <span>{{ APP_NAME }}</span>
           <span class="crumbs-sep">/</span>

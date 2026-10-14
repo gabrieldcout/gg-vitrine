@@ -45,6 +45,42 @@ export const CATEGORIES = [
   'Outro',
 ]
 
+// Segmentos do cardápio online (businesses.kind = 'cardapio'). No cadastro,
+// escolher um destes cria a vitrine de pedidos em vez da agenda.
+export const MENU_CATEGORIES = [
+  'Pensão / lanchonete',
+  'Lanchonete',
+  'Hamburgueria',
+  'Pizzaria',
+  'Restaurante',
+  'Marmitaria',
+  'Assados e frango',
+  'Açaí e sorvetes',
+  'Doces e bolos',
+  'Padaria',
+  'Açougue',
+  'Hortifrúti',
+  'Bebidas',
+  'Gás e água',
+  'Loja e catálogo',
+  'Outro (pedidos)',
+]
+
+// Tipo de vitrine pelo segmento.
+export function kindForCategory(category) {
+  return MENU_CATEGORIES.includes(category) ? 'cardapio' : 'agenda'
+}
+
+export function categoriesFor(kind) {
+  return kind === 'cardapio' ? MENU_CATEGORIES : CATEGORIES
+}
+
+// Palavra usada para o catálogo conforme o segmento.
+const NOT_FOOD = ['Gás e água', 'Loja e catálogo', 'Outro (pedidos)']
+export function catalogWord(category) {
+  return NOT_FOOD.includes(category) ? 'Catálogo' : 'Cardápio'
+}
+
 // Sugestões para o nome de "quem atende" na agenda.
 export const STAFF_LABELS = ['Profissional', 'Quadra', 'Sala', 'Espaço', 'Instrutor', 'Professor', 'Box', 'Equipamento']
 

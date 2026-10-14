@@ -214,7 +214,7 @@ async function savePayment() {
             </td>
             <td>
               <small>{{ b.professionals_count }} prof.<br />{{ b.customers_count }} clientes<br /></small>
-              <small>{{ b.activity_count }} agendamentos</small>
+              <small>{{ b.activity_count }} {{ b.kind === 'cardapio' ? 'pedidos' : 'agendamentos' }}</small>
             </td>
             <td>
               <div class="chips">
