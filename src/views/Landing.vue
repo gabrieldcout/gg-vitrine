@@ -6,6 +6,7 @@ import { CATEGORIES, APP_NAME, APP_DOMAIN, APP_SLOGAN, SUPPORT_WHATSAPP } from '
 import { waLink } from '@/lib/whatsapp'
 import AppLogo from '@/components/AppLogo.vue'
 import Icon from '@/components/Icon.vue'
+import PanelTour from '@/components/landing/PanelTour.vue'
 
 const contactLink = waLink(SUPPORT_WHATSAPP, `Olá! Quero saber mais sobre o ${APP_NAME}.`)
 const plans = ref([])
@@ -156,6 +157,7 @@ onBeforeUnmount(() => {
       <AppLogo />
       <div class="links">
         <a href="#como-funciona" class="hide-sm">Como funciona</a>
+        <a href="#painel" class="hide-sm">Por dentro</a>
         <a href="#recursos" class="hide-sm">Recursos</a>
         <a href="#planos" class="hide-sm">Planos</a>
         <RouterLink class="btn secondary small" to="/entrar">Entrar</RouterLink>
@@ -429,6 +431,8 @@ onBeforeUnmount(() => {
     </ol>
   </section>
 
+  <PanelTour />
+
   <!-- Recursos (bento) -->
   <section id="recursos" class="container section">
     <div class="section-head" data-reveal>
@@ -525,10 +529,16 @@ onBeforeUnmount(() => {
       <p class="eyebrow">Começar agora</p>
       <h2 class="gradient-text">{{ APP_SLOGAN }}</h2>
       <p class="muted">Cadastre seu negócio e coloque sua vitrine no ar ainda hoje.</p>
-      <RouterLink class="btn large" to="/cadastro">
-        Criar minha vitrine
-        <Icon name="plus" />
-      </RouterLink>
+      <div class="cta-actions">
+        <RouterLink class="btn large" to="/cadastro">
+          Criar minha vitrine
+          <Icon name="plus" />
+        </RouterLink>
+        <a v-if="contactLink" class="btn secondary large" :href="contactLink" target="_blank" rel="noopener">
+          <Icon name="whatsapp" />
+          Tirar dúvidas no WhatsApp
+        </a>
+      </div>
     </div>
   </section>
 
@@ -545,9 +555,22 @@ onBeforeUnmount(() => {
     </div>
   </footer>
 
+  <!-- Botão flutuante de WhatsApp (dúvidas / saber mais) -->
+  <a
+    v-if="contactLink"
+    class="wa-fab"
+    :href="contactLink"
+    target="_blank"
+    rel="noopener"
+    aria-label="Tirar dúvidas pelo WhatsApp"
+  >
+    <Icon name="whatsapp" />
+    <span class="wa-fab-label">Dúvidas? Fale com a gente</span>
+  </a>
+
   <!-- Botão "voltar ao topo" (aparece perto do rodapé) -->
   <transition name="top-fade">
-    <button v-if="showTopBtn" class="top-btn" aria-label="Voltar ao topo" @click="scrollToTop">
+    <button v-if="showTopBtn" class="top-btn" :class="{ 'above-wa': contactLink }" aria-label="Voltar ao topo" @click="scrollToTop">
       <Icon name="arrow-up" />
     </button>
   </transition>
@@ -1451,6 +1474,7 @@ onBeforeUnmount(() => {
 .cta .eyebrow { margin-bottom: 10px; }
 .cta h2 { font-size: clamp(1.6rem, 3.2vw, 2.4rem); margin-bottom: 12px; letter-spacing: -0.02em; }
 .cta .btn.large svg { width: 18px; height: 18px; }
+.cta-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
 
 /* =====================================================================
    Footer
@@ -1669,6 +1693,37 @@ onBeforeUnmount(() => {
   .journey-text { font-size: 0.9rem; }
 }
 
+/* Botão flutuante de WhatsApp */
+.wa-fab {
+  position: fixed;
+  right: 20px;
+  bottom: 24px;
+  z-index: 60;
+  display: inline-flex; align-items: center; gap: 10px;
+  height: 52px;
+  padding: 0 20px 0 16px;
+  border-radius: 999px;
+  background: #25d366;
+  color: #06280f;
+  font-weight: 700;
+  font-size: 0.92rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 24px rgba(37, 211, 102, 0.35);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.wa-fab:hover {
+  color: #06280f;
+  transform: translateY(-3px);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45), 0 0 32px rgba(37, 211, 102, 0.5);
+}
+.wa-fab :deep(svg) { width: 24px; height: 24px; flex-shrink: 0; }
+.top-btn.above-wa { bottom: 88px; }
+@media (max-width: 760px) {
+  /* No celular fica só o ícone, pra não cobrir o conteúdo */
+  .wa-fab { width: 52px; padding: 0; justify-content: center; right: 16px; bottom: 16px; }
+  .wa-fab-label { display: none; }
+  .top-btn.above-wa { right: 18px; bottom: 80px; }
+}
+
 /* Botão "voltar ao topo" */
 .top-btn {
   position: fixed;
@@ -1691,6 +1746,6 @@ onBeforeUnmount(() => {
 .top-fade-enter-from, .top-fade-leave-to { opacity: 0; transform: translateY(10px) scale(0.9); }
 
 @media (prefers-reduced-motion: reduce) {
-  .top-btn, .top-btn:hover { transition: none; transform: none; }
+  .top-btn, .top-btn:hover, .wa-fab, .wa-fab:hover { transition: none; transform: none; }
 }
 </style>
