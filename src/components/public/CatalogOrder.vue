@@ -30,6 +30,17 @@ const closedReason = computed(() => {
   return ''
 })
 const schedule = computed(() => hoursSummary(store.value.hours))
+// Taxa por bairro: com bairros cadastrados, o cliente escolhe numa lista.
+const zones = computed(() => store.value.zones ?? [])
+const hasZones = computed(() => zones.value.length > 0)
+const feeLabel = computed(() => {
+  if (!hasZones.value) return Number(store.value.delivery_fee) ? money(store.value.delivery_fee) : 'grátis'
+  const fees = zones.value.map((z) => Number(z.fee))
+  const min = Math.min(...fees)
+  const max = Math.max(...fees)
+  if (max === 0) return 'grátis'
+  return min === max ? money(min) : `a partir de ${min ? money(min) : 'grátis'}`
+})
 const showHours = ref(false)
 
 // ---------------- Sacola ----------------
@@ -68,7 +79,12 @@ const form = ref({
   mode: store.value.pickup_enabled ? 'retirada' : 'entrega',
   street: saved.street ?? '', number: saved.number ?? '', district: saved.district ?? '', reference: saved.reference ?? '',
   payment: 'pix', change: '', notes: '',
+  zone: '',
 })
+// Recupera o bairro salvo da última compra, se ele ainda estiver na lista.
+form.value.zone = zones.value.find((z) => z.name === saved.district)?.id ?? ''
+const zone = computed(() => zones.value.find((z) => z.id === form.value.zone))
+watch(zone, (z) => { if (z) form.value.district = z.name })
 watch(() => [form.value.name, form.value.phone, form.value.street, form.value.number, form.value.district, form.value.reference], () => {
   const { name, phone, street, number, district, reference } = form.value
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ name, phone, street, number, district, reference })) } catch { /* sem armazenamento local */ }
@@ -90,7 +106,11 @@ async function applyCoupon() {
   coupon.value = data
 }
 
-const deliveryFee = computed(() => (form.value.mode === 'entrega' ? Number(store.value.delivery_fee) : 0))
+const deliveryFee = computed(() => {
+  if (form.value.mode !== 'entrega') return 0
+  if (hasZones.value) return Number(zone.value?.fee ?? 0)
+  return Number(store.value.delivery_fee)
+})
 const discount = computed(() => Number(coupon.value?.discount ?? 0))
 const total = computed(() => Math.max(subtotal.value + deliveryFee.value - discount.value, 0))
 const belowMinimum = computed(() => Number(store.value.min_order) > 0 && subtotal.value < Number(store.value.min_order))
@@ -136,6 +156,7 @@ async function send() {
     p_address: f.mode === 'entrega' ? address() : null,
     p_payment: PAYMENTS[f.payment], p_change: f.payment === 'dinheiro' && f.change ? Number(f.change) : null,
     p_notes: f.notes || null, p_coupon: coupon.value?.code ?? null,
+    p_zone: f.mode === 'entrega' && hasZones.value ? f.zone : null,
   })
   busy.value = false
   if (err) { error.value = err.message; return }
@@ -172,7 +193,7 @@ function scrollTo(id) {
 
     <div class="info">
       <span v-if="store.pickup_enabled"><Icon name="bag" />Retirada no local</span>
-      <span v-if="store.delivery_enabled"><Icon name="truck" />Entrega {{ Number(store.delivery_fee) ? money(store.delivery_fee) : 'grátis' }}</span>
+      <span v-if="store.delivery_enabled"><Icon name="truck" />Entrega {{ feeLabel }}</span>
       <span v-if="Number(store.min_order)">Pedido mínimo {{ money(store.min_order) }}</span>
     </div>
     <p v-if="store.delivery_enabled && store.delivery_area" class="muted" style="font-size: 0.88rem">
@@ -266,7 +287,16 @@ function scrollTo(id) {
               <div class="field" style="max-width: 110px"><label>Número</label><input v-model="form.number" required /></div>
             </div>
             <div class="row">
-              <div class="field"><label>Bairro</label><input v-model="form.district" required /></div>
+              <div v-if="hasZones" class="field">
+                <label>Bairro</label>
+                <select v-model="form.zone" required>
+                  <option value="" disabled>Escolha o bairro</option>
+                  <option v-for="z in zones" :key="z.id" :value="z.id">
+                    {{ z.name }} · {{ Number(z.fee) ? money(z.fee) : 'grátis' }}
+                  </option>
+                </select>
+              </div>
+              <div v-else class="field"><label>Bairro</label><input v-model="form.district" required /></div>
               <div class="field"><label>Referência <small>(opcional)</small></label><input v-model="form.reference" /></div>
             </div>
           </template>
@@ -298,7 +328,10 @@ function scrollTo(id) {
 
           <div class="totals">
             <div class="spread"><span class="muted">Subtotal</span><span>{{ money(subtotal) }}</span></div>
-            <div v-if="form.mode === 'entrega'" class="spread"><span class="muted">Entrega</span><span>{{ money(deliveryFee) }}</span></div>
+            <div v-if="form.mode === 'entrega'" class="spread">
+              <span class="muted">Entrega{{ zone ? ` (${zone.name})` : '' }}</span>
+              <span>{{ hasZones && !zone ? 'escolha o bairro' : money(deliveryFee) }}</span>
+            </div>
             <div v-if="discount" class="spread"><span class="muted">Desconto</span><span style="color: var(--success)">-{{ money(discount) }}</span></div>
             <div class="spread total"><span>Total</span><span class="gradient-text">{{ money(total) }}</span></div>
           </div>

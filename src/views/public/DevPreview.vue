@@ -42,7 +42,8 @@ const allHours = [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({ weekday, start: '00:0
 const cardapio = {
   ...agenda, kind: 'cardapio', name: 'Lanchonete do Beto', category: 'Lanchonete', primary_color: '#dc2626',
   loyalty: { required: 8, reward: '1 lanche grátis' }, services: [], professionals: [],
-  store: { accepting_orders: true, open_now: true, pickup_enabled: true, delivery_enabled: true, delivery_fee: 7, min_order: 30, delivery_area: 'Centro e Vila Nova', hours: allHours },
+  store: { accepting_orders: true, open_now: true, pickup_enabled: true, delivery_enabled: true, delivery_fee: 7, min_order: 30, delivery_area: 'Centro e Vila Nova', hours: allHours,
+    zones: [{ id: 'z1', name: 'Centro', fee: 5 }, { id: 'z2', name: 'Vila Nova', fee: 8 }, { id: 'z3', name: 'Jardim América', fee: 12 }] },
   menu: [
     { id: 'c1', name: 'Lanches', items: [
       { id: 'i1', name: 'X-burguer', description: 'Pão, hambúrguer 150g, queijo, alface e tomate.', price: 28, photo_url: photo('burger'), available: true },

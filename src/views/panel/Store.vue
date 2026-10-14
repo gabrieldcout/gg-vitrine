@@ -10,6 +10,7 @@ const error = ref('')
 const saved = ref('')
 const settings = ref({})
 const days = ref([])   // [{ weekday, open, intervals: [{ start, end }] }]
+const zones = ref([])  // bairros atendidos: [{ name, fee }]
 
 onMounted(async () => {
   const b = biz.business
@@ -17,6 +18,9 @@ onMounted(async () => {
     accepting_orders: b.accepting_orders, pickup_enabled: b.pickup_enabled, delivery_enabled: b.delivery_enabled,
     delivery_fee: b.delivery_fee, min_order: b.min_order, delivery_area: b.delivery_area ?? '',
   }
+  zones.value = unwrap(await supabase.from('delivery_zones').select('name, fee')
+    .eq('business_id', b.id).order('sort_order').order('name'))
+    .map((z) => ({ name: z.name, fee: Number(z.fee) }))
   const rows = unwrap(await supabase.from('store_hours').select('*').eq('business_id', b.id).order('start_time'))
   days.value = WEEKDAYS.map((_, weekday) => {
     const mine = rows.filter((r) => r.weekday === weekday)
@@ -60,6 +64,27 @@ async function saveSettings() {
   if (err) { error.value = err.message; return }
   await biz.reload()
   flash('Entrega e retirada salvas.')
+}
+
+// Bairros: apaga e grava a lista inteira de novo (é curta e editada de uma vez).
+async function saveZones() {
+  error.value = ''
+  const rows = zones.value
+    .map((z, i) => ({ business_id: biz.business.id, name: z.name.trim(), fee: Number(z.fee || 0), sort_order: i }))
+    .filter((z) => z.name)
+  const names = rows.map((z) => z.name.toLowerCase())
+  if (new Set(names).size !== names.length) {
+    error.value = 'Tem bairro repetido na lista.'
+    return
+  }
+  try {
+    unwrap(await supabase.from('delivery_zones').delete().eq('business_id', biz.business.id))
+    if (rows.length) unwrap(await supabase.from('delivery_zones').insert(rows))
+    zones.value = rows.map((z) => ({ name: z.name, fee: z.fee }))
+    flash(rows.length ? 'Bairros e taxas salvos.' : 'Lista de bairros apagada. Vale a taxa única.')
+  } catch (e) {
+    error.value = e.message
+  }
 }
 
 async function saveHours() {
@@ -151,4 +176,32 @@ async function saveHours() {
     </div>
     <button class="btn">Salvar</button>
   </form>
+
+  <!-- Taxa por bairro -->
+  <div v-if="settings.delivery_enabled" class="card">
+    <h3>Taxa de entrega por bairro</h3>
+    <p class="muted">
+      Cadastre os bairros que você atende e a taxa de cada um. O cliente escolhe o bairro na hora do pedido
+      e só consegue pedir entrega para os bairros da lista. Com a lista vazia, vale a taxa única acima.
+    </p>
+    <div v-for="(z, i) in zones" :key="i" class="row zone-row">
+      <div class="field" style="flex: 2 1 200px; margin: 0">
+        <label v-if="i === 0">Bairro</label>
+        <input v-model="z.name" maxlength="60" placeholder="Ex.: Centro" />
+      </div>
+      <div class="field" style="flex: 1 1 110px; margin: 0">
+        <label v-if="i === 0">Taxa (R$)</label>
+        <input v-model="z.fee" type="number" min="0" step="0.01" />
+      </div>
+      <button type="button" class="btn small secondary shrink" title="Remover" @click="zones.splice(i, 1)">Remover</button>
+    </div>
+    <div class="row" style="margin-top: 12px">
+      <button type="button" class="btn secondary shrink" @click="zones.push({ name: '', fee: zones.at(-1)?.fee ?? 0 })">+ Adicionar bairro</button>
+      <button type="button" class="btn shrink" @click="saveZones">Salvar bairros</button>
+    </div>
+  </div>
 </template>
+
+<style scoped>
+.zone-row { align-items: flex-end; padding: 6px 0; }
+</style>
