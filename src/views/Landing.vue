@@ -176,9 +176,9 @@ onBeforeUnmount(() => {
 
     <div class="container hero-grid">
       <div class="hero-copy">
-        <div class="hero-pill">
+        <div class="hero-pill hero-pill-trial">
           <span class="dot-live" />
-          Agendamento online pra negócios de serviço
+          <strong>7 dias grátis</strong> · sem precisar de cartão
         </div>
         <h1 class="hero-title">
           <span class="line-1">Mostre seus serviços.</span>
@@ -190,7 +190,7 @@ onBeforeUnmount(() => {
         </p>
         <div class="hero-cta">
           <RouterLink class="btn large shrink" to="/cadastro">
-            Cadastrar meu negócio
+            Começar grátis
             <Icon name="plus" />
           </RouterLink>
           <a class="btn secondary large shrink" href="#planos">Ver planos</a>
@@ -481,6 +481,11 @@ onBeforeUnmount(() => {
         <span class="gradient-text">Gerencie quantos negócios quiser.</span>
       </h2>
       <p class="section-sub">Todos os planos têm as mesmas funcionalidades — mudam só o número de estabelecimentos que você pode cadastrar na sua conta.</p>
+      <div class="plans-trial">
+        <Icon name="sparkles" />
+        <strong>Experimente qualquer plano por 7 dias grátis.</strong>
+        <span>Sem precisar de cartão.</span>
+      </div>
     </div>
 
     <div class="plans">
@@ -636,6 +641,30 @@ onBeforeUnmount(() => {
   font-size: 0.82rem;
   font-weight: 500;
   margin-bottom: 24px;
+}
+.hero-pill-trial {
+  background: rgba(74, 222, 128, 0.1);
+  border-color: rgba(74, 222, 128, 0.35);
+  color: #d1fae5;
+}
+.hero-pill-trial strong { color: var(--success); font-weight: 700; }
+.hero-pill-trial .dot-live {
+  background: var(--success);
+  box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.5);
+}
+
+.plans-trial {
+  display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center;
+  margin-top: 20px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: rgba(74, 222, 128, 0.08);
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  font-size: 0.9rem;
+  color: var(--silver);
+}
+.plans-trial strong { color: var(--success); font-weight: 700; }
+.plans-trial :deep(svg), .plans-trial svg { width: 16px; height: 16px; color: var(--success); flex-shrink: 0;
 }
 .dot-live {
   width: 8px; height: 8px; border-radius: 50%;
