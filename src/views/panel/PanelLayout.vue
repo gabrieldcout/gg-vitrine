@@ -350,6 +350,24 @@ async function requestBusiness() {
     </aside>
 
     <main class="main panel-main">
+      <!-- Faixa do trial: fica sticky no topo enquanto o teste tá rolando -->
+      <div v-if="biz.trial && route.path !== '/painel/assinatura'" class="trial-bar"
+           :class="{ 'trial-bar-urgent': biz.trial.expiringSoon }">
+        <div class="trial-bar-info">
+          <span class="trial-bar-badge"><Icon name="sparkles" /></span>
+          <div class="trial-bar-text">
+            <strong v-if="biz.trial.days > 1">Faltam {{ biz.trial.days }} dias de teste</strong>
+            <strong v-else-if="biz.trial.days === 1">Último dia de teste</strong>
+            <strong v-else>Seu teste acaba hoje</strong>
+            <small>Garanta a vitrine no ar sem interrupção.</small>
+          </div>
+        </div>
+        <RouterLink class="btn small" to="/painel/assinatura">
+          <Icon name="card" />
+          <span>Assinar agora</span>
+        </RouterLink>
+      </div>
+
       <!-- Faixa de divulgação do link: fica sticky no topo em todas as telas do painel -->
       <div v-if="showShareBar" class="share-bar">
         <div class="share-bar-info">
@@ -862,6 +880,49 @@ async function requestBusiness() {
   min-width: 0;
   position: relative;
 }
+.trial-bar {
+  position: sticky; top: 0; z-index: 21;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 14px; flex-wrap: wrap;
+  padding: 10px 18px;
+  margin: 0 -36px;
+  padding-left: 54px; padding-right: 54px;
+  background:
+    radial-gradient(ellipse 320px 100px at 10% 50%, rgba(251, 191, 36, 0.22), transparent 70%),
+    linear-gradient(180deg, rgba(42, 29, 7, 0.95), rgba(27, 20, 7, 0.9));
+  border-bottom: 1px solid rgba(251, 191, 36, 0.3);
+  backdrop-filter: blur(14px);
+}
+.trial-bar-urgent {
+  background:
+    radial-gradient(ellipse 320px 100px at 10% 50%, rgba(248, 113, 113, 0.22), transparent 70%),
+    linear-gradient(180deg, rgba(42, 10, 10, 0.95), rgba(27, 7, 7, 0.9));
+  border-bottom-color: rgba(248, 113, 113, 0.35);
+}
+.trial-bar-info { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; }
+.trial-bar-badge {
+  width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+  display: grid; place-items: center;
+  background: linear-gradient(140deg, var(--warning), #d97706);
+  color: #0b0a05;
+  box-shadow: 0 0 14px rgba(251, 191, 36, 0.4);
+}
+.trial-bar-urgent .trial-bar-badge {
+  background: linear-gradient(140deg, var(--danger), #dc2626);
+  color: #fff;
+  box-shadow: 0 0 14px rgba(248, 113, 113, 0.5);
+}
+.trial-bar-badge :deep(svg) { width: 15px; height: 15px; }
+.trial-bar-text { display: flex; flex-direction: column; line-height: 1.3; }
+.trial-bar-text strong { color: var(--warning); font-size: 0.95rem; }
+.trial-bar-urgent .trial-bar-text strong { color: var(--danger); }
+.trial-bar-text small { color: var(--silver); font-size: 0.78rem; margin-top: 1px; }
+
+@media (max-width: 760px) {
+  .trial-bar { padding: 10px 14px; margin: 0 -16px; flex-wrap: wrap; }
+  .trial-bar .btn { flex: 1 1 100%; }
+}
+
 .share-bar {
   position: sticky;
   top: 0;

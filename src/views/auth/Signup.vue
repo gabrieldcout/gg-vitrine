@@ -9,7 +9,24 @@ import Icon from '@/components/Icon.vue'
 import { APP_DOMAIN, CATEGORIES } from '@/config/brand'
 
 const router = useRouter()
-const form = ref({ name: '', slug: '', category: CATEGORIES[0], phone: '', ownerName: '', email: '', password: '', accepted: false })
+const form = ref({ name: '', slug: '', category: CATEGORIES[0], phone: '', cpf: '', ownerName: '', email: '', password: '', accepted: false })
+
+function maskCPF(v) {
+  const d = (v || '').replace(/\D/g, '').slice(0, 11)
+  const p1 = d.slice(0, 3)
+  const p2 = d.slice(3, 6)
+  const p3 = d.slice(6, 9)
+  const p4 = d.slice(9, 11)
+  let out = p1
+  if (p2) out += '.' + p2
+  if (p3) out += '.' + p3
+  if (p4) out += '-' + p4
+  return out
+}
+watch(() => form.value.cpf, (v, old) => {
+  const masked = maskCPF(v)
+  if (masked !== v) form.value.cpf = masked
+})
 
 const slugTouched = ref(false)
 const error = ref('')
@@ -75,6 +92,15 @@ async function verifyCode() {
       type: 'signup',
     })
     if (err) throw new Error('Código inválido ou expirado. Confira o e-mail e tente de novo.')
+
+    // Aciona o trial de 7 dias usando o CPF informado. Falha silenciosa não
+    // impede o fluxo — a pessoa chega no painel e vai pra assinatura normal.
+    try {
+      await supabase.functions.invoke('start-trial', { body: { cpf: form.value.cpf } })
+    } catch (e) {
+      console.warn('Trial não iniciado:', e)
+    }
+
     router.push('/painel')
   } catch (e) {
     error.value = e.message
@@ -228,6 +254,15 @@ function startResendCooldown() {
                 WhatsApp
               </label>
             </div>
+          </div>
+
+          <div class="float-field" :class="{ filled: form.cpf }" style="margin-top: 10px">
+            <input id="cpf" v-model="form.cpf" inputmode="numeric" required placeholder=" " maxlength="14" />
+            <label for="cpf">
+              <Icon name="idcard" />
+              CPF
+            </label>
+            <small class="field-hint">Usamos pra ativar seus 7 dias de teste grátis.</small>
           </div>
         </section>
 

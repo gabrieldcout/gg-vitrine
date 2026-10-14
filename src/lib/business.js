@@ -13,7 +13,15 @@ export function createBusinessContext() {
     subscription: null,
     plan: null,
     get live() {
-      return this.business?.status === 'approved' && ['active', 'past_due'].includes(this.subscription?.status)
+      return this.business?.status === 'approved' &&
+        ['active', 'past_due', 'trialing'].includes(this.subscription?.status)
+    },
+    get trial() {
+      if (this.subscription?.status !== 'trialing' || !this.subscription?.trial_until) return null
+      const until = new Date(this.subscription.trial_until)
+      const diffMs = until - Date.now()
+      const days = Math.max(0, Math.ceil(diffMs / 86400000))
+      return { until, days, expiringSoon: days <= 2 }
     },
     hasFeature(feature) {
       return this.plan?.features?.includes(feature) ?? false
