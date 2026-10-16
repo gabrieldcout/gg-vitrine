@@ -148,10 +148,9 @@ function buildMessage(order) {
   return lines.join('\n')
 }
 
-function openWhatsApp() {
-  const url = waLink(props.business.phone, buildMessage(placed.value))
-  if (url) window.open(url, '_blank', 'noopener')
-}
+// Link pra conversa da loja com o pedido já escrito. Vai num botão que o
+// cliente toca: abrir sozinho depois de salvar o pedido é bloqueado no celular.
+const placedLink = computed(() => placed.value && waLink(props.business.phone, buildMessage(placed.value)))
 
 async function send() {
   error.value = ''
@@ -170,7 +169,6 @@ async function send() {
   busy.value = false
   if (err) { error.value = err.message; return }
   placed.value = data
-  openWhatsApp()
 }
 
 function finish() {
@@ -253,14 +251,17 @@ function scrollTo(id) {
       <div class="sheet">
         <div v-if="placed" class="done">
           <div class="done-icon"><Icon name="check" /></div>
-          <h2 class="gradient-text">Pedido #{{ placed.number }} enviado!</h2>
-          <p class="muted">Confirme o envio da mensagem no WhatsApp. A loja responde por lá.</p>
+          <h2 class="gradient-text">Pedido #{{ placed.number }} anotado!</h2>
           <p><strong>Total: {{ money(placed.total) }}</strong></p>
           <p v-if="placed.fee_pending" class="muted">A taxa de entrega do seu bairro será informada pela loja no WhatsApp.</p>
-          <div class="row" style="justify-content: center">
-            <button class="btn secondary shrink" @click="openWhatsApp">Abrir WhatsApp de novo</button>
-            <button class="btn shrink" @click="finish">Fazer outro pedido</button>
-          </div>
+          <template v-if="placedLink">
+            <p class="muted">Falta só um passo: toque no botão pra mandar o pedido na conversa com a loja.</p>
+            <a class="btn large block wa-send" :href="placedLink" target="_blank" rel="noopener">
+              <Icon name="whatsapp" style="width: 22px; height: 22px" />Enviar pedido no WhatsApp
+            </a>
+          </template>
+          <p v-else class="muted">A loja já recebeu seu pedido.</p>
+          <button class="btn secondary block" style="margin-top: 10px" @click="finish">Fazer outro pedido</button>
         </div>
 
         <form v-else @submit.prevent="send">
@@ -356,7 +357,7 @@ function scrollTo(id) {
           <div v-if="error" class="error">{{ error }}</div>
 
           <button class="btn large block" :disabled="!canOrder || belowMinimum || busy">
-            <Icon name="whatsapp" style="width: 20px; height: 20px" />{{ busy ? 'Enviando...' : 'Enviar pedido pelo WhatsApp' }}
+            <Icon name="whatsapp" style="width: 20px; height: 20px" />{{ busy ? 'Enviando...' : 'Fazer pedido' }}
           </button>
           <p v-if="!canOrder" class="muted" style="text-align: center; margin-top: 8px">{{ closedReason }}</p>
         </form>
@@ -400,6 +401,8 @@ function scrollTo(id) {
 .line { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
 .totals { display: grid; gap: 6px; padding: 14px 0; margin: 6px 0 14px; border-top: 1px solid var(--border); }
 .totals .total { font-size: 1.25rem; font-weight: 800; }
+.wa-send { background: #25d366; color: #fff; box-shadow: 0 0 24px rgba(37, 211, 102, 0.4); margin-top: 6px; }
+.wa-send:hover { background: #1ebe5b; }
 
 @media (max-width: 520px) { .item-photo { width: 88px; height: 88px; } }
 </style>
