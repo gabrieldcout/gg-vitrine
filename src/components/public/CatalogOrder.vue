@@ -313,7 +313,7 @@ function scrollTo(id) {
                 </template>
               </div>
               <div v-else class="field"><label>Bairro</label><input v-model="form.district" required /></div>
-              <div class="field"><label>Referência <small>(opcional)</small></label><input v-model="form.reference" /></div>
+              <div class="field"><label>Ponto de referência</label><input v-model="form.reference" required placeholder="Ex.: perto da padaria, portão azul" /></div>
             </div>
           </template>
 
