@@ -87,6 +87,12 @@ function waState(o) {
   return Date.now() - new Date(o.created_at).getTime() > 3 * 60000 ? 'missing' : null
 }
 
+// Confirma antes de cancelar: o botão fica do lado dos outros e é fácil tocar sem querer.
+function cancelOrder(o) {
+  if (!confirm(`Tem certeza que deseja cancelar o pedido #${o.number} de ${o.customer_name}?`)) return
+  setStatus(o, 'cancelado')
+}
+
 function customerLink(o) {
   const msg = {
     novo: `Olá ${o.customer_name}! Recebemos seu pedido #${o.number}. Já já começamos a preparar.`,
@@ -167,7 +173,7 @@ function customerLink(o) {
             <Icon name="whatsapp" style="width: 15px; height: 15px" />Avisar cliente
           </a>
           <button v-if="STATUS[o.status].next" class="btn small" @click="setStatus(o, STATUS[o.status].next)">{{ STATUS[o.status].action }}</button>
-          <button v-if="['novo', 'preparando'].includes(o.status)" class="btn small danger" @click="setStatus(o, 'cancelado')">Cancelar</button>
+          <button v-if="['novo', 'preparando'].includes(o.status)" class="btn small danger" @click="cancelOrder(o)">Cancelar</button>
         </div>
       </div>
     </div>

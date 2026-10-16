@@ -125,6 +125,23 @@ const belowMinimum = computed(() => Number(store.value.min_order) > 0 && subtota
 
 const PAYMENTS = { pix: 'PIX', dinheiro: 'Dinheiro', cartao: 'Cartão na entrega/retirada' }
 
+// Chave PIX da loja: o cliente paga direto pro lojista e manda o comprovante no WhatsApp.
+const pixKey = computed(() => store.value.pix_key?.trim() || '')
+const pixName = computed(() => store.value.pix_name?.trim() || props.business.name)
+const showPix = computed(() => form.value.payment === 'pix' && Boolean(pixKey.value))
+const pixCopied = ref(false)
+async function copyPix() {
+  try {
+    await navigator.clipboard.writeText(pixKey.value)
+  } catch {
+    const t = document.createElement('textarea')
+    t.value = pixKey.value
+    document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove()
+  }
+  pixCopied.value = true
+  setTimeout(() => { pixCopied.value = false }, 2000)
+}
+
 function address() {
   const f = form.value
   return [`${f.street}, ${f.number} - ${f.district}`, f.reference && `Ref.: ${f.reference}`].filter(Boolean).join(' · ')
@@ -144,6 +161,7 @@ function buildMessage(order) {
   let payment = PAYMENTS[f.payment]
   if (f.payment === 'dinheiro' && f.change) payment += ` (troco para ${money(f.change)})`
   lines.push(`*Pagamento:* ${payment}`)
+  if (f.payment === 'pix' && pixKey.value) lines.push('Vou pagar pela chave PIX da loja e mandar o comprovante aqui.')
   if (f.notes) lines.push(`*Observações:* ${f.notes}`)
   return lines.join('\n')
 }
@@ -259,6 +277,10 @@ function scrollTo(id) {
           <h2 class="gradient-text">Pedido #{{ placed.number }} anotado!</h2>
           <p><strong>Total: {{ money(placed.total) }}</strong></p>
           <p v-if="placed.fee_pending" class="muted">A taxa de entrega do seu bairro será informada pela loja no WhatsApp.</p>
+          <div v-if="showPix" class="pix-box">
+            <small>Pague por PIX para <strong>{{ pixName }}</strong> e mande o comprovante no WhatsApp</small>
+            <div class="pix-key"><code>{{ pixKey }}</code><button type="button" class="btn small" @click="copyPix">{{ pixCopied ? 'Copiado!' : 'Copiar chave' }}</button></div>
+          </div>
           <template v-if="placedLink">
             <p class="muted">Falta só um passo: toque no botão pra mandar o pedido na conversa com a loja.</p>
             <a class="btn large block wa-send" :href="placedLink" target="_blank" rel="noopener" @click="markWhatsApp">
@@ -328,6 +350,10 @@ function scrollTo(id) {
               <button v-for="(label, key) in PAYMENTS" :key="key" type="button" class="chip"
                       :class="{ selected: form.payment === key }" @click="form.payment = key">{{ label }}</button>
             </div>
+          </div>
+          <div v-if="showPix" class="pix-box">
+            <small>Chave PIX de <strong>{{ pixName }}</strong>. Você paga depois de fazer o pedido e manda o comprovante no WhatsApp.</small>
+            <div class="pix-key"><code>{{ pixKey }}</code><button type="button" class="btn small" @click="copyPix">{{ pixCopied ? 'Copiado!' : 'Copiar chave' }}</button></div>
           </div>
           <div v-if="form.payment === 'dinheiro'" class="field" style="max-width: 220px">
             <label>Troco para <small>(opcional)</small></label>
@@ -406,6 +432,10 @@ function scrollTo(id) {
 .line { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
 .totals { display: grid; gap: 6px; padding: 14px 0; margin: 6px 0 14px; border-top: 1px solid var(--border); }
 .totals .total { font-size: 1.25rem; font-weight: 800; }
+.pix-box { margin: 4px 0 14px; padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(50, 188, 173, 0.45); background: rgba(50, 188, 173, 0.1); text-align: left; }
+.pix-box small { display: block; color: var(--silver); font-size: 0.84rem; line-height: 1.4; }
+.pix-key { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.pix-key code { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 0.95rem; font-weight: 700; color: var(--text); }
 .wa-send { background: #25d366; color: #fff; box-shadow: 0 0 24px rgba(37, 211, 102, 0.4); margin-top: 6px; }
 .wa-send:hover { background: #1ebe5b; }
 

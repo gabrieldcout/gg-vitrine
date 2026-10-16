@@ -69,6 +69,19 @@ async function saveSettings() {
 }
 
 // Bairros: apaga e grava a lista inteira de novo (é curta e editada de uma vez).
+// Chave PIX: aparece na vitrine pra quem escolhe pagar por PIX.
+const pix = ref({ key: biz.business.pix_key ?? '', name: biz.business.pix_name ?? '' })
+const hasPixColumn = 'pix_key' in biz.business
+async function savePix() {
+  error.value = ''
+  const { error: err } = await supabase.from('businesses')
+    .update({ pix_key: pix.value.key.trim() || null, pix_name: pix.value.name.trim() || null })
+    .eq('id', biz.business.id)
+  if (err) { error.value = err.message; return }
+  await biz.reload()
+  flash(pix.value.key.trim() ? 'Chave PIX salva.' : 'Chave PIX removida.')
+}
+
 async function saveZones() {
   error.value = ''
   const rows = zones.value
@@ -177,6 +190,26 @@ async function saveHours() {
       <input v-model="settings.delivery_area" placeholder="Ex.: Centro, Vila Nova e Jardim América" />
     </div>
     <button class="btn">Salvar</button>
+  </form>
+
+  <!-- PIX -->
+  <form v-if="hasPixColumn" class="card" @submit.prevent="savePix">
+    <h3>Pagamento por PIX</h3>
+    <p class="muted">
+      Quem escolher PIX na vitrine vê esta chave com um botão de copiar, paga direto pra você e manda o
+      comprovante no WhatsApp. Deixe em branco pra não mostrar.
+    </p>
+    <div class="row">
+      <div class="field" style="flex: 2 1 220px">
+        <label>Chave PIX <small>(CPF, CNPJ, celular, e-mail ou aleatória)</small></label>
+        <input v-model="pix.key" maxlength="120" placeholder="Ex.: (21) 96725-7306" />
+      </div>
+      <div class="field" style="flex: 1 1 180px">
+        <label>Nome de quem recebe <small>(opcional)</small></label>
+        <input v-model="pix.name" maxlength="80" placeholder="Ex.: Maria da Silva" />
+      </div>
+    </div>
+    <button class="btn">Salvar chave PIX</button>
   </form>
 
   <!-- Taxa por bairro -->
