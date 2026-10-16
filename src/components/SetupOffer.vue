@@ -11,13 +11,13 @@ import Icon from '@/components/Icon.vue'
 defineProps({ compact: { type: Boolean, default: false } })
 
 const biz = useBusiness()
-const isMenu = computed(() => biz.business?.kind === 'cardapio')
+const isMenu = computed(() => biz?.business?.kind === 'cardapio')
 const what = computed(() => (isMenu.value
   ? 'cardápio com fotos e preços, horário, bairros e taxas de entrega'
-  : 'serviços, preços, horários e equipe'))
+  : biz?.business ? 'serviços, preços, horários e equipe' : 'serviços ou cardápio, preços e horários'))
 const link = computed(() => SUPPORT_WHATSAPP && waLink(SUPPORT_WHATSAPP,
   `Olá! Quero que o ${APP_NAME} monte minha vitrine` +
-  `${biz.business ? `: ${biz.business.name} (${APP_DOMAIN}/${biz.business.slug})` : ''}.`))
+  `${biz?.business ? `: ${biz.business.name} (${APP_DOMAIN}/${biz.business.slug})` : ''}.`))
 </script>
 
 <template>

@@ -54,5 +54,5 @@ export function provideKey() {
 }
 
 export function useBusiness() {
-  return inject(KEY)
+  return inject(KEY, null)   // null fora do painel (landing, cadastro)
 }

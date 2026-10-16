@@ -6,6 +6,7 @@ import { CATEGORIES, APP_NAME, APP_DOMAIN, APP_SLOGAN, SUPPORT_WHATSAPP } from '
 import { waLink } from '@/lib/whatsapp'
 import AppLogo from '@/components/AppLogo.vue'
 import Icon from '@/components/Icon.vue'
+import SetupOffer from '@/components/SetupOffer.vue'
 import PanelTour from '@/components/landing/PanelTour.vue'
 
 const contactLink = waLink(SUPPORT_WHATSAPP, `Olá! Quero saber mais sobre o ${APP_NAME}.`)
@@ -524,6 +525,10 @@ onBeforeUnmount(() => {
           Começar com o {{ plan.name }}
         </RouterLink>
       </div>
+    </div>
+
+    <div class="setup-wrap" data-reveal>
+      <SetupOffer />
     </div>
   </section>
 
@@ -1777,4 +1782,5 @@ onBeforeUnmount(() => {
 @media (prefers-reduced-motion: reduce) {
   .top-btn, .top-btn:hover, .wa-fab, .wa-fab:hover { transition: none; transform: none; }
 }
+.setup-wrap { max-width: 760px; margin: 28px auto 0; }
 </style>

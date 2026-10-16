@@ -6,9 +6,11 @@ import { slugify } from '@/lib/format'
 import AppLogo from '@/components/AppLogo.vue'
 import BackButton from '@/components/BackButton.vue'
 import Icon from '@/components/Icon.vue'
-import { APP_DOMAIN, CATEGORIES, MENU_CATEGORIES, kindForCategory } from '@/config/brand'
+import { APP_DOMAIN, APP_NAME, CATEGORIES, MENU_CATEGORIES, SUPPORT_WHATSAPP, kindForCategory } from '@/config/brand'
+import { waLink } from '@/lib/whatsapp'
 
 const router = useRouter()
+const setupLink = SUPPORT_WHATSAPP && waLink(SUPPORT_WHATSAPP, `Olá! Quero que o ${APP_NAME} monte minha vitrine.`)
 const form = ref({ name: '', slug: '', category: CATEGORIES[0], phone: '', cpf: '', ownerName: '', email: '', password: '', accepted: false })
 
 function maskCPF(v) {
@@ -336,6 +338,10 @@ function startResendCooldown() {
         <div class="form-foot">
           <span class="muted">Já tem conta?</span>
           <RouterLink to="/entrar" class="form-foot-link">Entrar no painel</RouterLink>
+        </div>
+        <div v-if="setupLink" class="form-foot setup-foot">
+          <span class="muted">Sem tempo pra configurar?</span>
+          <a :href="setupLink" target="_blank" rel="noopener" class="form-foot-link">A gente monta pra você</a>
         </div>
       </form>
     </div>
