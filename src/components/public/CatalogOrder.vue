@@ -152,6 +152,11 @@ function buildMessage(order) {
 // cliente toca: abrir sozinho depois de salvar o pedido é bloqueado no celular.
 const placedLink = computed(() => placed.value && waLink(props.business.phone, buildMessage(placed.value)))
 
+// Avisa o painel que o cliente abriu a conversa (não espera, nem trava o link).
+function markWhatsApp() {
+  if (placed.value?.id) supabase.rpc('mark_order_whatsapp', { p_order: placed.value.id }).then(() => {}, () => {})
+}
+
 async function send() {
   error.value = ''
   if (belowMinimum.value) { error.value = `O pedido mínimo é ${money(store.value.min_order)}.`; return }
@@ -256,7 +261,7 @@ function scrollTo(id) {
           <p v-if="placed.fee_pending" class="muted">A taxa de entrega do seu bairro será informada pela loja no WhatsApp.</p>
           <template v-if="placedLink">
             <p class="muted">Falta só um passo: toque no botão pra mandar o pedido na conversa com a loja.</p>
-            <a class="btn large block wa-send" :href="placedLink" target="_blank" rel="noopener">
+            <a class="btn large block wa-send" :href="placedLink" target="_blank" rel="noopener" @click="markWhatsApp">
               <Icon name="whatsapp" style="width: 22px; height: 22px" />Enviar pedido no WhatsApp
             </a>
           </template>

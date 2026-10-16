@@ -79,6 +79,14 @@ async function setStatus(o, status) {
   load()
 }
 
+// Situação do WhatsApp do pedido (só aparece depois da migration 0019).
+// O cliente tem uns minutos pra tocar no botão antes de virar alerta.
+function waState(o) {
+  if (!('wa_clicked_at' in o) || o.status === 'cancelado') return null
+  if (o.wa_clicked_at) return 'ok'
+  return Date.now() - new Date(o.created_at).getTime() > 3 * 60000 ? 'missing' : null
+}
+
 function customerLink(o) {
   const msg = {
     novo: `Olá ${o.customer_name}! Recebemos seu pedido #${o.number}. Já já começamos a preparar.`,
@@ -139,6 +147,10 @@ function customerLink(o) {
         <span v-if="o.fee_pending" class="fee-pending"><Icon name="whatsapp" />Bairro fora da lista: combine a taxa de entrega com o cliente</span>
         <span><Icon name="card" />{{ o.payment }}<template v-if="o.change_for"> · troco p/ {{ money(o.change_for) }}</template></span>
         <span v-if="o.notes"><Icon name="clipboard" />{{ o.notes }}</span>
+        <span v-if="waState(o) === 'ok'" class="wa-ok"><Icon name="whatsapp" />Cliente abriu o WhatsApp com o pedido</span>
+        <span v-else-if="waState(o) === 'missing'" class="wa-missing">
+          <Icon name="whatsapp" />Cliente não abriu o WhatsApp. Confirme o pedido pelo botão "Avisar cliente".
+        </span>
       </div>
 
       <div class="spread" style="margin-top: 12px">
@@ -172,4 +184,7 @@ function customerLink(o) {
 .meta svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 2px; color: var(--brand-ink); }
 .meta .fee-pending { color: #fbbf24; font-weight: 600; }
 .meta .fee-pending svg { color: #fbbf24; }
+.meta .wa-ok, .meta .wa-ok svg { color: #4ade80; }
+.meta .wa-missing { color: #fbbf24; font-weight: 600; }
+.meta .wa-missing svg { color: #fbbf24; }
 </style>
