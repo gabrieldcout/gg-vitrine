@@ -5,6 +5,7 @@ import { useBusiness } from '@/lib/business'
 import { money, formatDate, SUBSCRIPTION_STATUS } from '@/lib/format'
 import { SUPPORT_WHATSAPP } from '@/config/brand'
 import Icon from '@/components/Icon.vue'
+import SetupOffer from '@/components/SetupOffer.vue'
 
 const PLAN_PITCH = {
   solo: 'Pra quem está começando ou toca o negócio sozinho.',
@@ -359,6 +360,8 @@ async function cancelSubscription() {
       </div>
     </div>
   </template>
+
+  <SetupOffer />
 
   <!-- Histórico de pagamentos -->
   <div v-if="payments.length" class="history-card">

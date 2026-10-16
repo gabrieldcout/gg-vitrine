@@ -14,6 +14,7 @@ import { CATEGORIES } from '@/config/brand'
 import { templateFor } from '@/lib/onboarding-templates'
 import AppLogo from '@/components/AppLogo.vue'
 import Icon from '@/components/Icon.vue'
+import SetupOffer from '@/components/SetupOffer.vue'
 
 const router = useRouter()
 const biz = useBusiness()
@@ -236,6 +237,8 @@ async function skipNow() {
           </button>
         </div>
       </header>
+
+      <SetupOffer compact />
 
       <!-- Cabeçalho -->
       <div class="onb-head">

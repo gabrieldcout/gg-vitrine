@@ -3,6 +3,8 @@ export const APP_NAME = 'GG Vitrine'
 export const APP_DOMAIN = 'ggvitrine.online'
 export const APP_SLOGAN = 'Mostre seus serviços. Receba clientes.'
 export const SUPPORT_WHATSAPP = '5521966620300' // (21) 96662-0300
+// Serviço "montamos sua vitrine". null = valor combinado pelo WhatsApp; um número mostra o preço fixo.
+export const SETUP_PRICE = null
 
 // Dados da empresa usados nos Termos de uso e na Política de privacidade.
 // Preencher antes do lançamento.

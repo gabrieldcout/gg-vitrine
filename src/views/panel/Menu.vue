@@ -4,6 +4,7 @@ import { supabase, unwrap } from '@/lib/supabase'
 import { useBusiness } from '@/lib/business'
 import { money, plural } from '@/lib/format'
 import Icon from '@/components/Icon.vue'
+import SetupOffer from '@/components/SetupOffer.vue'
 import { catalogWord } from '@/config/brand'
 
 const biz = useBusiness()
@@ -176,6 +177,7 @@ async function uploadPhoto(event) {
   <p v-if="!categories.length" class="notice">
     Comece criando as categorias ({{ T.catPh.replace('Ex.: ', 'ex.: ') }}). Depois adicione os {{ T.item }}s em cada uma.
   </p>
+  <SetupOffer v-if="!categories.length" />
 
   <!-- Categorias e produtos -->
   <div v-for="(c, index) in categories" :key="c.id" class="card">
