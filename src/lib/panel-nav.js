@@ -20,7 +20,7 @@ export const PANEL_NAV = [
   { to: '/painel/cupons', label: 'Cupons', icon: 'tag', feature: 'cupons' },
   { to: '/painel/divulgar', label: 'Divulgar', icon: 'qr' },
   { to: '/painel/tutorial', label: 'Tutorial', icon: 'sparkles', kinds: ['agenda'] },
-  { to: '/painel/financeiro', label: 'Financeiro', icon: 'chart', kinds: ['agenda'] },
+  { to: '/painel/financeiro', label: 'Financeiro', icon: 'chart' },
   { to: '/painel/perfil', label: 'Perfil', icon: 'store' },
   { to: '/painel/assinatura', label: 'Assinatura', icon: 'card' },
 ]

@@ -15,6 +15,67 @@ const PERIODS = [
   { key: '30d', label: 'Últimos 30 dias' },
 ]
 
+// Cardápio: os números saem dos pedidos (calculados aqui no navegador);
+// agenda: da RPC business_dashboard, a partir dos agendamentos concluídos.
+const isMenu = computed(() => biz.business.kind === 'cardapio')
+const T = computed(() => (isMenu.value
+  ? { one: 'pedido', many: 'pedidos', countLabel: 'Pedidos', rateLabel: 'Pedidos cancelados',
+      topTitle: 'Mais vendidos', topSub: 'Os produtos que mais faturaram no período', topEmpty: 'Sem vendas no período',
+      byTitle: 'Faturamento por forma de pagamento', bySub: 'Como seus clientes estão pagando',
+      lede: 'Veja seu faturamento, pedidos e os produtos e clientes que te rendem mais.',
+      emptyTitle: 'Sem pedidos nesse período', emptyText: 'Quando chegarem pedidos pela sua vitrine',
+      emptyCta: 'Ver pedidos', emptyTo: '/painel/pedidos', chartHint: 'pedidos cancelados não entram' }
+  : { one: 'agendamento', many: 'agendamentos', countLabel: 'Agendamentos concluídos', rateLabel: 'Taxa de no-show',
+      topTitle: 'Top serviços', topSub: 'Os que mais faturaram no período', topEmpty: 'Sem serviços no período',
+      byTitle: `Faturamento por ${biz.business.staff_label}`, bySub: 'Veja quem gerou mais receita no período',
+      lede: 'Veja seu faturamento, agendamentos e os serviços e clientes que te rendem mais.',
+      emptyTitle: 'Sem agendamentos concluídos nesse período', emptyText: 'Quando você marcar atendimentos como concluídos',
+      emptyCta: 'Cadastrar primeiro agendamento', emptyTo: '/painel', chartHint: 'passe o mouse nas barras pra ver cada dia' }))
+const unit = (n) => (Number(n) === 1 ? T.value.one : T.value.many)
+const itemUnit = (n) => (isMenu.value ? (Number(n) === 1 ? 'unidade vendida' : 'unidades vendidas') : unit(n))
+
+const localDay = (iso) => {
+  const d = new Date(iso)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+// Mesmo formato da RPC, montado a partir dos pedidos do período.
+async function loadMenuDashboard(start, end) {
+  const { data: rows, error: err } = await supabase.from('orders')
+    .select('total, status, created_at, customer_name, phone, payment, order_items(name, qty, total)')
+    .eq('business_id', biz.business.id)
+    .gte('created_at', start.toISOString()).lte('created_at', end.toISOString())
+    .limit(5000)
+  if (err) return { error: err }
+  const all = rows ?? []
+  const sold = all.filter((o) => o.status !== 'cancelado')
+  const sum = (list) => list.reduce((t, x) => t + Number(x.total), 0)
+  const group = (list, keyOf, nameOf, countOf = () => 1) => {
+    const m = new Map()
+    for (const x of list) {
+      const k = keyOf(x)
+      const g = m.get(k) ?? { name: nameOf(x), revenue: 0, count: 0 }
+      g.revenue += Number(x.total); g.count += countOf(x)
+      m.set(k, g)
+    }
+    return [...m.values()].sort((a, b) => b.revenue - a.revenue)
+  }
+  const total = sum(sold)
+  return {
+    data: {
+      total_revenue: total,
+      total_appointments: sold.length,
+      avg_ticket: sold.length ? Math.round((total / sold.length) * 100) / 100 : 0,
+      no_show_rate: all.length ? Math.round((1000 * (all.length - sold.length)) / all.length) / 10 : 0,
+      revenue_by_day: group(sold, (o) => localDay(o.created_at), (o) => localDay(o.created_at))
+        .map((g) => ({ day: g.name, revenue: g.revenue, count: g.count })),
+      top_services: group(sold.flatMap((o) => o.order_items ?? []), (i) => i.name, (i) => i.name, (i) => Number(i.qty)).slice(0, 5),
+      top_customers: group(sold, (o) => (o.phone ?? '').replace(/\D/g, '') || o.customer_name, (o) => o.customer_name).slice(0, 5),
+      revenue_by_professional: group(sold, (o) => o.payment, (o) => o.payment),
+    },
+  }
+}
+
 const period = ref('30d')
 const data = ref(null)
 const loading = ref(false)
@@ -62,11 +123,13 @@ async function load() {
   loading.value = true
   error.value = ''
   const { start, end } = periodRange(period.value)
-  const { data: r, error: err } = await supabase.rpc('business_dashboard', {
-    p_business: biz.business.id,
-    p_start: start.toISOString(),
-    p_end: end.toISOString(),
-  })
+  const { data: r, error: err } = isMenu.value
+    ? await loadMenuDashboard(start, end)
+    : await supabase.rpc('business_dashboard', {
+      p_business: biz.business.id,
+      p_start: start.toISOString(),
+      p_end: end.toISOString(),
+    })
   if (err) error.value = err.message
   data.value = r ?? null
   loading.value = false
@@ -224,10 +287,10 @@ async function saveSale() {
       <p class="eyebrow dash-eyebrow">Painel financeiro</p>
       <h1>Dashboard</h1>
       <p class="muted dash-lede">
-        Veja seu faturamento, agendamentos e os serviços e clientes que te rendem mais.
+        {{ T.lede }}
       </p>
     </div>
-    <button class="btn dash-sale-btn" @click="openSaleModal">
+    <button v-if="!isMenu" class="btn dash-sale-btn" @click="openSaleModal">
       <Icon name="plus" />
       Lançar venda avulsa
     </button>
@@ -265,15 +328,15 @@ async function saveSale() {
       <div class="empty-icon-ring" />
       <div class="empty-icon-core"><Icon name="chart" /></div>
     </div>
-    <h3>Sem agendamentos concluídos nesse período</h3>
+    <h3>{{ T.emptyTitle }}</h3>
     <p class="muted">
-      Quando você marcar atendimentos como concluídos em {{ periodLabel.toLowerCase() }},
+      {{ T.emptyText }} em {{ periodLabel.toLowerCase() }},
       o faturamento, os clientes campeões e as métricas aparecem aqui.
     </p>
     <div class="empty-actions">
-      <RouterLink to="/painel" class="btn">
-        <Icon name="plus" />
-        Cadastrar primeiro agendamento
+      <RouterLink :to="T.emptyTo" class="btn">
+        <Icon :name="isMenu ? 'bag' : 'plus'" />
+        {{ T.emptyCta }}
       </RouterLink>
     </div>
   </div>
@@ -288,7 +351,7 @@ async function saveSale() {
       </article>
       <article class="metric-card">
         <div class="metric-ico"><Icon name="calendar" /></div>
-        <small class="metric-label">Agendamentos concluídos</small>
+        <small class="metric-label">{{ T.countLabel }}</small>
         <strong class="metric-value">{{ totalAppts }}</strong>
       </article>
       <article class="metric-card">
@@ -298,7 +361,7 @@ async function saveSale() {
       </article>
       <article class="metric-card" :class="`tone-${noShowTone}`">
         <div class="metric-ico"><Icon name="ban" /></div>
-        <small class="metric-label">Taxa de no-show</small>
+        <small class="metric-label">{{ T.rateLabel }}</small>
         <strong class="metric-value">{{ noShowRate.toFixed(1) }}%</strong>
       </article>
     </div>
@@ -309,7 +372,7 @@ async function saveSale() {
         <span class="section-badge"><Icon name="chart" /></span>
         <div>
           <h3>Faturamento por dia</h3>
-          <small class="muted">{{ periodLabel }} · passe o mouse nas barras pra ver cada dia</small>
+          <small class="muted">{{ periodLabel }} · {{ T.chartHint }}</small>
         </div>
       </div>
 
@@ -361,7 +424,7 @@ async function saveSale() {
           <span class="gradient-text">{{ money(chartData[hoverIndex].revenue) }}</span>
           <small class="muted">
             {{ chartData[hoverIndex].count }}
-            {{ chartData[hoverIndex].count === 1 ? 'agendamento' : 'agendamentos' }}
+            {{ unit(chartData[hoverIndex].count) }}
           </small>
         </div>
       </div>
@@ -373,13 +436,13 @@ async function saveSale() {
         <div class="section-head">
           <span class="section-badge"><Icon name="briefcase" /></span>
           <div>
-            <h3>Top serviços</h3>
-            <small class="muted">Os que mais faturaram no período</small>
+            <h3>{{ T.topTitle }}</h3>
+            <small class="muted">{{ T.topSub }}</small>
           </div>
         </div>
         <div v-if="!topServices.length" class="mini-empty">
           <Icon name="briefcase" />
-          <span>Sem serviços no período</span>
+          <span>{{ T.topEmpty }}</span>
         </div>
         <ul v-else class="rank-list">
           <li v-for="(s, i) in topServices" :key="s.service_id ?? i" class="rank-row">
@@ -392,7 +455,7 @@ async function saveSale() {
               <div class="rank-fill" :style="{ width: pct(s.revenue, topServicesMax) + '%' }" />
             </div>
             <small class="muted rank-sub">
-              {{ s.count }} {{ Number(s.count) === 1 ? 'agendamento' : 'agendamentos' }}
+              {{ s.count }} {{ itemUnit(s.count) }}
             </small>
           </li>
         </ul>
@@ -421,7 +484,7 @@ async function saveSale() {
               <div class="rank-fill" :style="{ width: pct(c.revenue, topCustomersMax) + '%' }" />
             </div>
             <small class="muted rank-sub">
-              {{ c.count }} {{ Number(c.count) === 1 ? 'agendamento' : 'agendamentos' }}
+              {{ c.count }} {{ unit(c.count) }}
             </small>
           </li>
         </ul>
@@ -433,8 +496,8 @@ async function saveSale() {
       <div class="section-head">
         <span class="section-badge"><Icon name="user" /></span>
         <div>
-          <h3>Faturamento por {{ biz.business.staff_label }}</h3>
-          <small class="muted">Veja quem gerou mais receita no período</small>
+          <h3>{{ T.byTitle }}</h3>
+          <small class="muted">{{ T.bySub }}</small>
         </div>
       </div>
       <ul class="rank-list">
@@ -448,7 +511,7 @@ async function saveSale() {
             <div class="rank-fill" :style="{ width: pct(p.revenue, byProMax) + '%' }" />
           </div>
           <small class="muted rank-sub">
-            {{ p.count }} {{ Number(p.count) === 1 ? 'agendamento' : 'agendamentos' }}
+            {{ p.count }} {{ unit(p.count) }}
           </small>
         </li>
       </ul>

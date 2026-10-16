@@ -23,11 +23,13 @@ const STATUS = {
   entregue: { label: 'Entregue', badge: '' },
   cancelado: { label: 'Cancelado', badge: 'red' },
 }
-const FILTERS = { abertos: 'Em aberto', hoje: 'Hoje', todos: 'Todos' }
+const FILTERS = { abertos: 'Em aberto', hoje: 'Hoje', entregues: 'Entregues', cancelados: 'Cancelados', todos: 'Todos' }
 
 const visible = computed(() => orders.value.filter((o) => {
   if (filter.value === 'abertos') return ['novo', 'preparando', 'pronto'].includes(o.status)
   if (filter.value === 'hoje') return new Date(o.created_at) >= zonedToUtc(todayISO(tz.value), '00:00', tz.value)
+  if (filter.value === 'entregues') return o.status === 'entregue'
+  if (filter.value === 'cancelados') return o.status === 'cancelado'
   return true
 }))
 const todayTotal = computed(() => orders.value
@@ -37,7 +39,7 @@ const todayTotal = computed(() => orders.value
 async function load() {
   try {
     orders.value = unwrap(await supabase.from('orders').select('*, order_items(name, qty, unit_price, total)')
-      .eq('business_id', biz.business.id).order('created_at', { ascending: false }).limit(200))
+      .eq('business_id', biz.business.id).order('created_at', { ascending: false }).limit(1000))
     const openCount = orders.value.filter((o) => o.status === 'novo').length
     if (lastCount.value !== null && openCount > lastCount.value) {
       hasNew.value = true
