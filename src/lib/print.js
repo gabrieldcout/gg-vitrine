@@ -110,7 +110,8 @@ export function printOrder(o, business) {
       ${items}
       <hr>
       <div class="row"><span>Subtotal</span><strong>${esc(money(o.subtotal))}</strong></div>
-      ${Number(o.delivery_fee) ? `<div class="row"><span>Entrega</span><strong>${esc(money(o.delivery_fee))}</strong></div>` : ''}
+      ${o.fee_pending ? '<div class="row"><span>Entrega</span><strong>A COMBINAR</strong></div>'
+        : Number(o.delivery_fee) ? `<div class="row"><span>Entrega</span><strong>${esc(money(o.delivery_fee))}</strong></div>` : ''}
       ${Number(o.discount) ? `<div class="row"><span>Desconto${o.coupon_code ? ` (${esc(o.coupon_code)})` : ''}</span><strong>-${esc(money(o.discount))}</strong></div>` : ''}
       <div class="row total"><span>Total</span><strong>${esc(money(o.total))}</strong></div>
       <div class="row"><span>Pagamento</span><strong>${esc(o.payment)}${change}</strong></div>

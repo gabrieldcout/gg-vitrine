@@ -136,6 +136,7 @@ function customerLink(o) {
 
       <div class="meta">
         <span><Icon :name="o.mode === 'entrega' ? 'truck' : 'bag'" />{{ o.mode === 'entrega' ? o.address : 'Retirada no local' }}</span>
+        <span v-if="o.fee_pending" class="fee-pending"><Icon name="whatsapp" />Bairro fora da lista: combine a taxa de entrega com o cliente</span>
         <span><Icon name="card" />{{ o.payment }}<template v-if="o.change_for"> · troco p/ {{ money(o.change_for) }}</template></span>
         <span v-if="o.notes"><Icon name="clipboard" />{{ o.notes }}</span>
       </div>
@@ -143,6 +144,7 @@ function customerLink(o) {
       <div class="spread" style="margin-top: 12px">
         <div>
           <strong style="font-size: 1.15rem">{{ money(o.total) }}</strong>
+          <small v-if="o.fee_pending"> + entrega a combinar</small>
           <small v-if="Number(o.discount)"> (desconto {{ money(o.discount) }} · {{ o.coupon_code }})</small>
         </div>
         <div class="chips">
@@ -168,4 +170,6 @@ function customerLink(o) {
 .meta { display: grid; gap: 6px; font-size: 0.88rem; color: var(--silver); }
 .meta span { display: flex; gap: 8px; align-items: flex-start; }
 .meta svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 2px; color: var(--brand-ink); }
+.meta .fee-pending { color: #fbbf24; font-weight: 600; }
+.meta .fee-pending svg { color: #fbbf24; }
 </style>

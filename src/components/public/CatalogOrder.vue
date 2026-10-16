@@ -33,6 +33,9 @@ const schedule = computed(() => hoursSummary(store.value.hours))
 // Taxa por bairro: com bairros cadastrados, o cliente escolhe numa lista.
 const zones = computed(() => store.value.zones ?? [])
 const hasZones = computed(() => zones.value.length > 0)
+// Bairro fora da lista: o pedido vai com a taxa de entrega a combinar.
+const OTHER = '__outro'
+const allowOther = computed(() => store.value.delivery_other === true)
 const feeLabel = computed(() => {
   if (!hasZones.value) return Number(store.value.delivery_fee) ? money(store.value.delivery_fee) : 'grátis'
   const fees = zones.value.map((z) => Number(z.fee))
@@ -82,9 +85,14 @@ const form = ref({
   zone: '',
 })
 // Recupera o bairro salvo da última compra, se ele ainda estiver na lista.
-form.value.zone = zones.value.find((z) => z.name === saved.district)?.id ?? ''
+form.value.zone = zones.value.find((z) => z.name === saved.district)?.id
+  ?? (allowOther.value && saved.district ? OTHER : '')
 const zone = computed(() => zones.value.find((z) => z.id === form.value.zone))
-watch(zone, (z) => { if (z) form.value.district = z.name })
+const otherZone = computed(() => hasZones.value && form.value.zone === OTHER)
+watch(() => form.value.zone, (id, old) => {
+  if (zone.value) form.value.district = zone.value.name
+  else if (id === OTHER && old && old !== OTHER) form.value.district = ''
+})
 watch(() => [form.value.name, form.value.phone, form.value.street, form.value.number, form.value.district, form.value.reference], () => {
   const { name, phone, street, number, district, reference } = form.value
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ name, phone, street, number, district, reference })) } catch { /* sem armazenamento local */ }
@@ -108,7 +116,7 @@ async function applyCoupon() {
 
 const deliveryFee = computed(() => {
   if (form.value.mode !== 'entrega') return 0
-  if (hasZones.value) return Number(zone.value?.fee ?? 0)
+  if (hasZones.value) return otherZone.value ? 0 : Number(zone.value?.fee ?? 0)
   return Number(store.value.delivery_fee)
 })
 const discount = computed(() => Number(coupon.value?.discount ?? 0))
@@ -127,7 +135,8 @@ function buildMessage(order) {
   const lines = [`*Pedido #${order.number}: ${props.business.name}*`, '']
   for (const l of order.items) lines.push(`${l.qty}x ${l.name}: ${money(l.total)}`)
   lines.push('', `Subtotal: ${money(order.subtotal)}`)
-  if (Number(order.delivery_fee)) lines.push(`Entrega: ${money(order.delivery_fee)}`)
+  if (order.fee_pending) lines.push('Entrega: *a combinar* (meu bairro não está na lista)')
+  else if (Number(order.delivery_fee)) lines.push(`Entrega: ${money(order.delivery_fee)}`)
   if (Number(order.discount)) lines.push(`Desconto (${order.coupon}): -${money(order.discount)}`)
   lines.push(`*Total: ${money(order.total)}*`, '')
   lines.push(`*Cliente:* ${f.name}`, `*Telefone:* ${f.phone}`)
@@ -156,7 +165,7 @@ async function send() {
     p_address: f.mode === 'entrega' ? address() : null,
     p_payment: PAYMENTS[f.payment], p_change: f.payment === 'dinheiro' && f.change ? Number(f.change) : null,
     p_notes: f.notes || null, p_coupon: coupon.value?.code ?? null,
-    p_zone: f.mode === 'entrega' && hasZones.value ? f.zone : null,
+    p_zone: f.mode === 'entrega' && hasZones.value && !otherZone.value ? f.zone : null,
   })
   busy.value = false
   if (err) { error.value = err.message; return }
@@ -247,6 +256,7 @@ function scrollTo(id) {
           <h2 class="gradient-text">Pedido #{{ placed.number }} enviado!</h2>
           <p class="muted">Confirme o envio da mensagem no WhatsApp. A loja responde por lá.</p>
           <p><strong>Total: {{ money(placed.total) }}</strong></p>
+          <p v-if="placed.fee_pending" class="muted">A taxa de entrega do seu bairro será informada pela loja no WhatsApp.</p>
           <div class="row" style="justify-content: center">
             <button class="btn secondary shrink" @click="openWhatsApp">Abrir WhatsApp de novo</button>
             <button class="btn shrink" @click="finish">Fazer outro pedido</button>
@@ -287,14 +297,19 @@ function scrollTo(id) {
               <div class="field" style="max-width: 110px"><label>Número</label><input v-model="form.number" required /></div>
             </div>
             <div class="row">
-              <div v-if="hasZones" class="field">
+              <div v-if="hasZones" class="field" style="flex: 1 1 100%">
                 <label>Bairro</label>
                 <select v-model="form.zone" required>
                   <option value="" disabled>Escolha o bairro</option>
                   <option v-for="z in zones" :key="z.id" :value="z.id">
                     {{ z.name }} · {{ Number(z.fee) ? money(z.fee) : 'grátis' }}
                   </option>
+                  <option v-if="allowOther" :value="OTHER">Meu bairro não está na lista</option>
                 </select>
+                <template v-if="otherZone">
+                  <input v-model="form.district" required placeholder="Digite seu bairro" style="margin-top: 8px" />
+                  <small class="muted">A loja te informa a taxa de entrega pelo WhatsApp.</small>
+                </template>
               </div>
               <div v-else class="field"><label>Bairro</label><input v-model="form.district" required /></div>
               <div class="field"><label>Referência <small>(opcional)</small></label><input v-model="form.reference" /></div>
@@ -330,10 +345,11 @@ function scrollTo(id) {
             <div class="spread"><span class="muted">Subtotal</span><span>{{ money(subtotal) }}</span></div>
             <div v-if="form.mode === 'entrega'" class="spread">
               <span class="muted">Entrega{{ zone ? ` (${zone.name})` : '' }}</span>
-              <span>{{ hasZones && !zone ? 'escolha o bairro' : money(deliveryFee) }}</span>
+              <span>{{ otherZone ? 'a combinar' : hasZones && !zone ? 'escolha o bairro' : money(deliveryFee) }}</span>
             </div>
             <div v-if="discount" class="spread"><span class="muted">Desconto</span><span style="color: var(--success)">-{{ money(discount) }}</span></div>
             <div class="spread total"><span>Total</span><span class="gradient-text">{{ money(total) }}</span></div>
+            <small v-if="form.mode === 'entrega' && otherZone" class="muted">+ taxa de entrega, que a loja informa pelo WhatsApp</small>
           </div>
 
           <div v-if="belowMinimum" class="notice">Faltam {{ money(store.min_order - subtotal) }} para o pedido mínimo de {{ money(store.min_order) }}.</div>

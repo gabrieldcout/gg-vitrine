@@ -17,6 +17,7 @@ onMounted(async () => {
   settings.value = {
     accepting_orders: b.accepting_orders, pickup_enabled: b.pickup_enabled, delivery_enabled: b.delivery_enabled,
     delivery_fee: b.delivery_fee, min_order: b.min_order, delivery_area: b.delivery_area ?? '',
+    delivery_other: b.delivery_other ?? true,
   }
   zones.value = unwrap(await supabase.from('delivery_zones').select('name, fee')
     .eq('business_id', b.id).order('sort_order').order('name'))
@@ -60,6 +61,7 @@ async function saveSettings() {
     pickup_enabled: s.pickup_enabled, delivery_enabled: s.delivery_enabled,
     delivery_fee: Number(s.delivery_fee || 0), min_order: Number(s.min_order || 0),
     delivery_area: s.delivery_area || null,
+    ...(biz.business.delivery_other === undefined ? {} : { delivery_other: s.delivery_other }),
   }).eq('id', biz.business.id)
   if (err) { error.value = err.message; return }
   await biz.reload()
@@ -199,9 +201,19 @@ async function saveHours() {
       <button type="button" class="btn secondary shrink" @click="zones.push({ name: '', fee: zones.at(-1)?.fee ?? 0 })">+ Adicionar bairro</button>
       <button type="button" class="btn shrink" @click="saveZones">Salvar bairros</button>
     </div>
+    <label v-if="zones.length && biz.business.delivery_other !== undefined" class="other-zone">
+      <input v-model="settings.delivery_other" type="checkbox" @change="saveSettings" />
+      <span>
+        Aceitar pedido de bairro fora da lista
+        <small class="muted">O cliente digita o bairro e o pedido chega com a taxa "a combinar". Você informa o valor pelo WhatsApp.</small>
+      </span>
+    </label>
   </div>
 </template>
 
 <style scoped>
 .zone-row { align-items: flex-end; padding: 6px 0; }
+.other-zone { display: flex; gap: 10px; align-items: flex-start; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); cursor: pointer; }
+.other-zone input { margin-top: 3px; }
+.other-zone small { display: block; margin-top: 2px; }
 </style>
