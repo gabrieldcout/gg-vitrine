@@ -14,13 +14,11 @@ function setMeta(html, attr, key, value) {
   return re.test(html) ? html.replace(re, tag) : html.replace('</head>', `    ${tag}\n  </head>`)
 }
 
-// Logo enviada pelo painel (Supabase Storage) pode passar de 600 KB, e o
-// WhatsApp não mostra imagem pesada na prévia: usa a versão reduzida, no
-// formato original (sem format=origin o Supabase manda WebP pra quem aceita).
-function previewImage(url) {
-  return url.includes('/storage/v1/object/public/')
-    ? url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/') + '?width=256&height=256&resize=contain&quality=70&format=origin'
-    : url
+// Logo enviada pelo painel (Supabase Storage): usa a versão reduzida em PNG
+// servida pelo próprio site (api/og-image.js), num endereço sem "?" nem "&".
+function previewImage(url, origin) {
+  const m = url.match(/\/storage\/v1\/object\/public\/(logos\/[\w-]+\/[\w.-]+)$/)
+  return m ? `${origin}/og/${m[1]}` : url
 }
 
 export function withBusiness(html, b, origin) {
@@ -30,7 +28,7 @@ export function withBusiness(html, b, origin) {
   const title = `${b.name} · ${isMenu ? `Visite nosso ${word}` : 'Agende seu horário'}`
   const description = b.description?.trim() ||
     (isMenu ? `Veja o cardápio e faça seu pedido online em ${b.name}.` : `Agende seu horário online em ${b.name}.`)
-  const image = b.logo_url ? previewImage(b.logo_url) : `${origin}/logo.png`
+  const image = b.logo_url ? previewImage(b.logo_url, origin) : `${origin}/logo.png`
   let out = html.replace(/<title>[^<]*<\/title>/, `<title>${esc(title)}</title>`)
   out = setMeta(out, 'name', 'description', description)
   out = setMeta(out, 'property', 'og:site_name', b.name)
