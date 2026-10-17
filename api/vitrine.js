@@ -19,7 +19,7 @@ function setMeta(html, attr, key, value) {
 // formato original (sem format=origin o Supabase manda WebP pra quem aceita).
 function previewImage(url) {
   return url.includes('/storage/v1/object/public/')
-    ? url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/') + '?width=400&height=400&resize=contain&quality=80&format=origin'
+    ? url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/') + '?width=256&height=256&resize=contain&quality=70&format=origin'
     : url
 }
 
@@ -40,8 +40,8 @@ export function withBusiness(html, b, origin) {
   out = setMeta(out, 'property', 'og:image:secure_url', image)
   out = setMeta(out, 'property', 'og:image:alt', b.name)
   if (b.logo_url) {
-    out = setMeta(out, 'property', 'og:image:width', '400')
-    out = setMeta(out, 'property', 'og:image:height', '400')
+    out = setMeta(out, 'property', 'og:image:width', '256')
+    out = setMeta(out, 'property', 'og:image:height', '256')
   }
   out = setMeta(out, 'property', 'og:url', `${origin}/${b.slug}`)
   out = setMeta(out, 'name', 'twitter:card', 'summary')
