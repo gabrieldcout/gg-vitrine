@@ -24,7 +24,9 @@ function previewImage(url) {
 
 export function withBusiness(html, b, origin) {
   const isMenu = b.kind === 'cardapio'
-  const title = `${b.name} · ${isMenu ? 'Faça seu pedido' : 'Agende seu horário'}`
+  // Mesmos segmentos "não comida" de catalogWord() em src/config/brand.js.
+  const word = ['Gás e água', 'Loja e catálogo', 'Outro (pedidos)'].includes(b.category) ? 'catálogo' : 'cardápio'
+  const title = `${b.name} · ${isMenu ? `Visite nosso ${word}` : 'Agende seu horário'}`
   const description = b.description?.trim() ||
     (isMenu ? `Veja o cardápio e faça seu pedido online em ${b.name}.` : `Agende seu horário online em ${b.name}.`)
   const image = b.logo_url ? previewImage(b.logo_url) : `${origin}/logo.png`
