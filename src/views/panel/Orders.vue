@@ -97,7 +97,8 @@ async function setStatus(o, status) {
 function waState(o) {
   if (!('wa_clicked_at' in o) || o.status === 'cancelado') return null
   if (o.wa_clicked_at) return 'ok'
-  return Date.now() - new Date(o.created_at).getTime() > 3 * 60000 ? 'missing' : null
+  // Só alerta enquanto o pedido está "Novo": depois disso a loja já tratou com o cliente.
+  return o.status === 'novo' && Date.now() - new Date(o.created_at).getTime() > 3 * 60000 ? 'missing' : null
 }
 
 // Confirma antes de cancelar: o botão fica do lado dos outros e é fácil tocar sem querer.

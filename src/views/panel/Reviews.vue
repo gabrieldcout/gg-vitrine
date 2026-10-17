@@ -106,7 +106,7 @@ async function remove(r) {
         </div>
         <h3>Ainda sem avaliações</h3>
         <p class="muted">
-          Depois de cada atendimento concluído, o cliente recebe o link pra avaliar. Peça feedback nos primeiros dias — as primeiras estrelas puxam as próximas.
+          Seus clientes avaliam direto pela vitrine{{ biz.business.kind === 'cardapio' ? ', depois de receber o pedido' : ', depois do atendimento' }}. Peça feedback nos primeiros dias — as primeiras estrelas puxam as próximas.
         </p>
       </div>
 

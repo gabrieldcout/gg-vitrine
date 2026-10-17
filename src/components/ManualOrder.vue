@@ -95,6 +95,8 @@ async function save() {
       order = data
     }
     if (!order) throw new Error('Não deu pra numerar o pedido. Tente de novo.')
+    // Marca como "WhatsApp ok" pra não aparecer o alerta de cliente que não abriu o WhatsApp.
+    await supabase.from('orders').update({ wa_clicked_at: new Date().toISOString() }).eq('id', order.id)
     unwrap(await supabase.from('order_items').insert(lines.value.map((l) => ({
       order_id: order.id, business_id: bid, item_id: l.id, name: l.name,
       unit_price: Number(l.price), qty: l.qty, total: l.total,

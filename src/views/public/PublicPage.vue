@@ -24,6 +24,9 @@ const notFound = ref(false)
 
 const brandStyle = computed(() => brandVars(business.value?.primary_color))
 const isMenu = computed(() => business.value?.kind === 'cardapio')
+// Cardápio fora do horário ou com pedidos pausados: o selo do topo não pode dizer "Pedidos online".
+const storeOpen = computed(() => !isMenu.value ||
+  (business.value?.store?.accepting_orders !== false && business.value?.store?.open_now !== false))
 // O cardápio tem a própria barra fixa (sacola), então o botão "Agendar" fixo é só da agenda.
 const showSticky = computed(() => business.value?.live && !isMenu.value)
 
@@ -69,9 +72,9 @@ onBeforeUnmount(() => io?.disconnect())
   <div v-else-if="business" :style="brandStyle" style="min-height: 100vh">
     <header class="biz-hero rich">
       <div class="biz-cover">
-        <div v-if="business.live" class="biz-live-pill">
+        <div v-if="business.live" class="biz-live-pill" :class="{ closed: !storeOpen }">
           <span class="dot" />
-          <span>{{ isMenu ? 'Pedidos online' : 'Agendando online' }}</span>
+          <span>{{ !storeOpen ? 'Fechado agora' : isMenu ? 'Pedidos online' : 'Agendando online' }}</span>
         </div>
         <div class="container biz-cover-inner">
           <!-- espaço reservado — a logo "flutua" sobre a capa -->
@@ -160,6 +163,7 @@ onBeforeUnmount(() => io?.disconnect())
 </template>
 
 <style scoped>
+.biz-live-pill.closed .dot { background: #f87171; box-shadow: 0 0 10px rgba(248, 113, 113, 0.7); }
 .privacy-note { text-align: center; font-size: 0.75rem; color: var(--muted); margin-top: 8px; }
 .privacy-note a { color: var(--muted); text-decoration: underline; }
 .biz-rich-info .biz-rich-rating small { font-weight: 500; }

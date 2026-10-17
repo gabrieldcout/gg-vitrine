@@ -194,6 +194,12 @@ async function send() {
   placed.value = data
 }
 
+// Fechar a janela depois do pedido feito equivale a "fazer outro pedido".
+function closeSheet() {
+  if (placed.value) finish()
+  else checkoutOpen.value = false
+}
+
 function finish() {
   cart.value = {}
   placed.value = null
@@ -270,7 +276,7 @@ function scrollTo(id) {
     </div>
 
     <!-- Finalização -->
-    <div v-if="checkoutOpen" class="sheet-backdrop" @click.self="checkoutOpen = false">
+    <div v-if="checkoutOpen" class="sheet-backdrop" @click.self="closeSheet">
       <div class="sheet">
         <div v-if="placed" class="done">
           <div class="done-icon"><Icon name="check" /></div>

@@ -7,7 +7,10 @@ import Icon from '@/components/Icon.vue'
 import Upsell from '@/components/Upsell.vue'
 
 const biz = useBusiness()
-const program = ref({ active: false, stamps_required: 10, reward: '1 serviço grátis' })
+// No cardápio o carimbo vem do pedido entregue; na agenda, do atendimento concluído.
+const isMenu = computed(() => biz.business.kind === 'cardapio')
+const done = computed(() => (isMenu.value ? 'pedido entregue' : 'atendimento concluído'))
+const program = ref({ active: false, stamps_required: 10, reward: isMenu.value ? '1 item grátis do cardápio' : '1 serviço grátis' })
 const exists = ref(false)
 const cards = ref([])
 const search = ref('')
@@ -89,7 +92,7 @@ async function addCard() {
       <p class="eyebrow ly-eyebrow">Retenção</p>
       <h1>Cartão fidelidade</h1>
       <p class="muted ly-lede">
-        A cada atendimento concluído, o cliente ganha um carimbo. Completou o cartão, ganha o prêmio — e volta mais.
+        A cada {{ done }}, o cliente ganha um carimbo. Completou o cartão, ganha o prêmio — e volta mais.
       </p>
     </div>
     <span v-if="exists && cards.length" class="ly-count">
@@ -124,7 +127,7 @@ async function addCard() {
         <span class="section-badge"><Icon name="gift" /></span>
         <div>
           <h3>Como funciona</h3>
-          <small class="muted">Cada atendimento concluído dá 1 carimbo. Dá pra carimbar manualmente também.</small>
+          <small class="muted">Cada {{ done }} dá 1 carimbo (pelo WhatsApp do cliente). Dá pra carimbar manualmente também.</small>
         </div>
       </div>
 
@@ -194,7 +197,7 @@ async function addCard() {
           <span class="section-badge"><Icon name="plus" /></span>
           <div>
             <h3>Carimbar manualmente</h3>
-            <small class="muted">Pra cliente que chegou sem agendar. Se já tiver cartão, soma +1.</small>
+            <small class="muted">{{ isMenu ? 'Pra cliente que comprou no balcão ou por telefone.' : 'Pra cliente que chegou sem agendar.' }} Se já tiver cartão, soma +1.</small>
           </div>
         </div>
         <div class="ff-row">
@@ -231,7 +234,7 @@ async function addCard() {
             <div class="empty-icon-core"><Icon name="gift" /></div>
           </div>
           <h3>Nenhum cliente carimbou ainda</h3>
-          <p class="muted">Divulgue o programa — assim que o primeiro atendimento for concluído, o cliente aparece aqui.</p>
+          <p class="muted">Divulgue o programa — assim que o primeiro {{ done }} acontecer, o cliente aparece aqui.</p>
         </div>
 
         <template v-else>
