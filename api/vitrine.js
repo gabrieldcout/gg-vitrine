@@ -15,10 +15,11 @@ function setMeta(html, attr, key, value) {
 }
 
 // Logo enviada pelo painel (Supabase Storage) pode passar de 600 KB, e o
-// WhatsApp não mostra imagem pesada na prévia: usa a versão reduzida.
+// WhatsApp não mostra imagem pesada na prévia: usa a versão reduzida, no
+// formato original (sem format=origin o Supabase manda WebP pra quem aceita).
 function previewImage(url) {
   return url.includes('/storage/v1/object/public/')
-    ? url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/') + '?width=400&height=400&resize=contain&quality=80'
+    ? url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/') + '?width=400&height=400&resize=contain&quality=80&format=origin'
     : url
 }
 
@@ -36,6 +37,12 @@ export function withBusiness(html, b, origin) {
   out = setMeta(out, 'property', 'og:title', title)
   out = setMeta(out, 'property', 'og:description', description)
   out = setMeta(out, 'property', 'og:image', image)
+  out = setMeta(out, 'property', 'og:image:secure_url', image)
+  out = setMeta(out, 'property', 'og:image:alt', b.name)
+  if (b.logo_url) {
+    out = setMeta(out, 'property', 'og:image:width', '400')
+    out = setMeta(out, 'property', 'og:image:height', '400')
+  }
   out = setMeta(out, 'property', 'og:url', `${origin}/${b.slug}`)
   out = setMeta(out, 'name', 'twitter:card', 'summary')
   if (b.logo_url) out = out.replace(/<link rel="icon"[^>]*>/, `<link rel="icon" href="${esc(b.logo_url)}" />`)
