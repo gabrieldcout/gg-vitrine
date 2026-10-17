@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    { "source": "/:slug([^/.]+)", "destination": "/api/vitrine?slug=:slug" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
