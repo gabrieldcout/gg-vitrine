@@ -5,6 +5,7 @@ import { useBusiness } from '@/lib/business'
 import { money, formatTime, formatDate, todayISO, zonedToUtc } from '@/lib/format'
 import { waLink } from '@/lib/whatsapp'
 import { printOrder } from '@/lib/print'
+import ManualOrder from '@/components/ManualOrder.vue'
 import Icon from '@/components/Icon.vue'
 import { catalogWord } from '@/config/brand'
 
@@ -14,6 +15,16 @@ const orders = ref([])
 const filter = ref('abertos')
 const error = ref('')
 const lastCount = ref(null)
+const showManual = ref(false)
+const manualMsg = ref('')
+
+function manualSaved(order) {
+  showManual.value = false
+  manualMsg.value = `Venda #${order.number} lançada.`
+  setTimeout(() => { manualMsg.value = '' }, 4000)
+  lastCount.value = null   // não tocar o bipe de pedido novo por causa dela
+  load()
+}
 const hasNew = ref(false)
 
 const STATUS = {
@@ -113,11 +124,16 @@ function customerLink(o) {
       <p class="eyebrow">{{ catalogWord(biz.business.category) }}</p>
       <h1>Pedidos</h1>
     </div>
-    <div class="card stat" style="padding: 12px 18px">
-      <div class="label">Vendido hoje</div>
-      <div class="value" style="font-size: 1.4rem">{{ money(todayTotal) }}</div>
+    <div class="orders-head-right">
+      <div class="card stat" style="padding: 12px 18px">
+        <div class="label">Vendido hoje</div>
+        <div class="value" style="font-size: 1.4rem">{{ money(todayTotal) }}</div>
+      </div>
+      <button class="btn" @click="showManual = true"><Icon name="plus" style="width: 16px; height: 16px" />Lançar venda avulsa</button>
     </div>
   </div>
+  <ManualOrder v-if="showManual" @close="showManual = false" @saved="manualSaved" />
+  <div v-if="manualMsg" class="success">{{ manualMsg }}</div>
 
   <div v-if="hasNew" class="success spread" @click="hasNew = false">
     <strong>🔔 Chegou pedido novo!</strong><button class="btn small secondary">Ok</button>
@@ -184,6 +200,8 @@ function customerLink(o) {
 
 <style scoped>
 .orders { display: grid; gap: 12px; }
+.orders-head-right { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+@media (max-width: 640px) { .orders-head-right { width: 100%; } }
 .card + .card { margin-top: 0; }
 .order.fresh { border-color: rgba(251, 191, 36, 0.5); box-shadow: 0 0 20px rgba(251, 191, 36, 0.12); }
 .items { list-style: none; padding: 0; margin: 12px 0; display: grid; gap: 4px; }
