@@ -6,6 +6,7 @@ import { money, formatTime, formatDate, todayISO, zonedToUtc } from '@/lib/forma
 import { waLink } from '@/lib/whatsapp'
 import { printOrder } from '@/lib/print'
 import ManualOrder from '@/components/ManualOrder.vue'
+import SourceBadge from '@/components/SourceBadge.vue'
 import Icon from '@/components/Icon.vue'
 import { catalogWord } from '@/config/brand'
 
@@ -103,7 +104,8 @@ async function setStatus(o, status) {
 // Situação do WhatsApp do pedido (só aparece depois da migration 0019).
 // O cliente tem uns minutos pra tocar no botão antes de virar alerta.
 function waState(o) {
-  if (!('wa_clicked_at' in o) || o.status === 'cancelado') return null
+  // Só pedido feito pela vitrine passa pelo WhatsApp (venda avulsa/iFood/99 não).
+  if (!('wa_clicked_at' in o) || o.status === 'cancelado' || (o.source && o.source !== 'site')) return null
   if (o.wa_clicked_at) return 'ok'
   // Só alerta enquanto o pedido está "Novo": depois disso a loja já tratou com o cliente.
   return o.status === 'novo' && Date.now() - new Date(o.created_at).getTime() > 3 * 60000 ? 'missing' : null
@@ -172,7 +174,7 @@ function customerLink(o) {
   <div class="orders">
     <div v-for="o in visible" :key="o.id" class="card order" :class="{ fresh: o.status === 'novo' }">
       <div class="spread">
-        <h3 style="margin: 0">#{{ o.number }} · {{ o.customer_name }}</h3>
+        <h3 style="margin: 0">#{{ o.number }} · {{ o.customer_name }} <SourceBadge v-if="o.source && o.source !== 'site'" :source="o.source" /></h3>
         <span :class="['badge', STATUS[o.status].badge]">{{ STATUS[o.status].label }}</span>
       </div>
       <small>{{ formatDate(o.created_at, tz, { day: '2-digit', month: '2-digit' }) }} às {{ formatTime(o.created_at, tz) }}</small>

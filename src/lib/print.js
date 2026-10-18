@@ -1,4 +1,5 @@
 import { money, formatTime, formatDate, APPOINTMENT_STATUS } from './format'
+import { ORDER_SOURCES } from './order-source'
 
 // Impressão de comprovante / agenda do dia. Monta um HTML simples num iframe
 // escondido e chama o print do navegador. O layout é estreito (cabe em
@@ -100,6 +101,7 @@ export function printOrder(o, business) {
       ${business.phone ? `<p class="sub">${esc(business.phone)}</p>` : ''}
       <hr>
       <h1>PEDIDO #${esc(o.number)}</h1>
+      ${o.source && o.source !== 'site' ? `<p class="sub"><strong>${esc(ORDER_SOURCES[o.source]?.label ?? o.source)}</strong></p>` : ''}
       <p class="sub">${esc(formatDate(o.created_at, tz))} às ${esc(formatTime(o.created_at, tz))}</p>
       <hr>
       <div class="row"><span>Cliente</span><strong>${esc(o.customer_name)}</strong></div>

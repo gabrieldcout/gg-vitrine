@@ -1,11 +1,13 @@
 <script setup>
 // Venda avulsa do cardápio (balcão, telefone): grava um pedido igual aos da
 // vitrine, com os produtos do cardápio, e ele aparece em Pedidos e no Financeiro.
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { supabase, unwrap } from '@/lib/supabase'
 import { useBusiness } from '@/lib/business'
 import { money } from '@/lib/format'
 import Icon from '@/components/Icon.vue'
+import SourceBadge from '@/components/SourceBadge.vue'
+import { ORDER_SOURCES, MANUAL_SOURCES, isAppSource } from '@/lib/order-source'
 
 const emit = defineEmits(['close', 'saved'])
 const biz = useBusiness()
@@ -17,13 +19,19 @@ const search = ref('')
 const error = ref('')
 const saving = ref(false)
 
-const PAYMENTS = ['PIX', 'Dinheiro', 'Cartão na entrega/retirada']
+const PAYMENTS = ['PIX', 'Dinheiro', 'Cartão na entrega/retirada', 'Pago no app']
 const pad = (n) => String(n).padStart(2, '0')
 const now = new Date()
 const form = ref({
   name: '', phone: '', mode: 'retirada', address: '', zone: '', fee: '',
-  payment: 'PIX', notes: '', done: true,
+  payment: 'PIX', notes: '', done: true, source: 'balcao',
   at: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`,
+})
+
+// Pedido de iFood/99 já vem pago pelo app.
+watch(() => form.value.source, (s, old) => {
+  if (isAppSource(s)) form.value.payment = 'Pago no app'
+  else if (isAppSource(old) && form.value.payment === 'Pago no app') form.value.payment = 'PIX'
 })
 
 onMounted(async () => {
@@ -84,13 +92,20 @@ async function save() {
     for (let attempt = 0; attempt < 3 && !order; attempt++) {
       const last = unwrap(await supabase.from('orders').select('number').eq('business_id', bid)
         .order('number', { ascending: false }).limit(1))
-      const { data, error: err } = await supabase.from('orders').insert({
+      const row = {
         business_id: bid, number: (last[0]?.number ?? 0) + 1,
-        customer_name: f.name.trim() || 'Venda no balcão', phone: f.phone.trim(),
+        customer_name: f.name.trim() || (f.source === 'balcao' ? 'Venda no balcão' : `Pedido ${ORDER_SOURCES[f.source].label}`),
+        phone: f.phone.trim(),
         mode: f.mode, address, payment: f.payment, notes: f.notes.trim() || null,
         subtotal: subtotal.value, delivery_fee: fee.value, discount: 0, total: total.value,
-        status: f.done ? 'entregue' : 'novo', created_at: new Date(f.at).toISOString(),
-      }).select('id, number').single()
+        status: f.done ? 'entregue' : 'novo', created_at: new Date(f.at).toISOString(), source: f.source,
+      }
+      let { data, error: err } = await supabase.from('orders').insert(row).select('id, number').single()
+      // Banco ainda sem a coluna "source" (migration 0021): grava sem a origem.
+      if (err && /source/i.test(err.message)) {
+        delete row.source
+        ;({ data, error: err } = await supabase.from('orders').insert(row).select('id, number').single())
+      }
       if (err && !/duplicate|unique/i.test(err.message)) throw new Error(err.message)
       order = data
     }
@@ -133,6 +148,16 @@ async function save() {
               <button type="button" aria-label="Aumentar" @click="add(i, 1)"><Icon name="plus" /></button>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Origem do pedido</label>
+        <div class="mo-sources">
+          <button v-for="key in MANUAL_SOURCES" :key="key" type="button" class="mo-source"
+                  :class="{ on: form.source === key }" @click="form.source = key">
+            <SourceBadge :source="key" />
+          </button>
         </div>
       </div>
 
@@ -201,6 +226,10 @@ async function save() {
 .mo-step button svg { width: 14px; height: 14px; }
 .mo-step span { min-width: 20px; text-align: center; font-weight: 700; }
 .mo-tabs { margin-bottom: 12px; }
+.mo-sources { display: flex; gap: 8px; flex-wrap: wrap; }
+.mo-source { padding: 6px 8px; border-radius: 12px; border: 2px solid var(--border); background: var(--surface); cursor: pointer; }
+.mo-source.on { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+.mo-source :deep(.source-badge) { font-size: 0.85rem; padding: 4px 12px; }
 .mo-done { display: flex; gap: 8px; align-items: center; font-size: 0.9rem; margin: 4px 0 12px; }
 .mo-total { display: grid; gap: 4px; padding: 12px 0; border-top: 1px solid var(--border); margin-bottom: 10px; }
 .mo-sum { font-size: 1.2rem; font-weight: 800; }

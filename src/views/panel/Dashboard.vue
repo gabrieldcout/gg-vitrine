@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useBusiness } from '@/lib/business'
 import { money } from '@/lib/format'
 import Icon from '@/components/Icon.vue'
+import SourceBadge from '@/components/SourceBadge.vue'
 
 const biz = useBusiness()
 
@@ -41,8 +42,9 @@ const localDay = (iso) => {
 
 // Mesmo formato da RPC, montado a partir dos pedidos do período.
 async function loadMenuDashboard(start, end) {
+  // select('*') pra funcionar com ou sem a coluna "source" (migration 0021).
   const { data: rows, error: err } = await supabase.from('orders')
-    .select('total, status, created_at, customer_name, phone, payment, order_items(name, qty, total)')
+    .select('*, order_items(name, qty, total)')
     .eq('business_id', biz.business.id)
     .gte('created_at', start.toISOString()).lte('created_at', end.toISOString())
     .limit(5000)
@@ -72,6 +74,8 @@ async function loadMenuDashboard(start, end) {
       top_services: group(sold.flatMap((o) => o.order_items ?? []), (i) => i.name, (i) => i.name, (i) => Number(i.qty)).slice(0, 5),
       top_customers: group(sold, (o) => (o.phone ?? '').replace(/\D/g, '') || o.customer_name, (o) => o.customer_name).slice(0, 5),
       revenue_by_professional: group(sold, (o) => o.payment, (o) => o.payment),
+      revenue_by_source: group(sold, (o) => o.source ?? 'site', (o) => o.source ?? 'site')
+        .map((g) => ({ source: g.name, revenue: g.revenue, count: g.count })),
     },
   }
 }
@@ -211,6 +215,8 @@ function pct(value, max) {
 }
 
 const showProBlock = computed(() => byProfessional.value.length > 1)
+const bySource = computed(() => data.value?.revenue_by_source ?? [])
+const bySourceMax = computed(() => Math.max(1, ...bySource.value.map((s) => Number(s.revenue))))
 const isEmpty = computed(() => !loading.value && data.value && totalAppts.value === 0)
 
 const periodLabel = computed(() => PERIODS.find((p) => p.key === period.value)?.label ?? '')
@@ -490,6 +496,30 @@ async function saveSale() {
         </ul>
       </section>
     </div>
+
+    <!-- Cardápio: vendas por canal (site, balcão, telefone, iFood, 99) -->
+    <section v-if="isMenu && bySource.length" class="dash-card">
+      <div class="section-head">
+        <span class="section-badge"><Icon name="bag" /></span>
+        <div>
+          <h3>Vendas por canal</h3>
+          <small class="muted">De onde vêm seus pedidos. iFood e 99 entram pela venda avulsa.</small>
+        </div>
+      </div>
+      <ul class="rank-list">
+        <li v-for="(c, i) in bySource" :key="c.source" class="rank-row">
+          <div class="rank-top">
+            <span class="rank-pos">{{ i + 1 }}</span>
+            <strong class="rank-name"><SourceBadge :source="c.source" /></strong>
+            <span class="rank-value">{{ money(c.revenue) }}</span>
+          </div>
+          <div class="rank-track">
+            <div class="rank-fill" :style="{ width: pct(c.revenue, bySourceMax) + '%' }" />
+          </div>
+          <small class="muted rank-sub">{{ c.count }} {{ unit(c.count) }}</small>
+        </li>
+      </ul>
+    </section>
 
     <!-- Faturamento por profissional -->
     <section v-if="showProBlock" class="dash-card">
