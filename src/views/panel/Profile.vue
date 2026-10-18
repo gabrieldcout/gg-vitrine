@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
+import { shrinkImage } from '@/lib/image'
 import { supabase } from '@/lib/supabase'
 import { useBusiness } from '@/lib/business'
 import { categoriesFor, APP_DOMAIN, STAFF_LABELS } from '@/config/brand'
@@ -85,9 +86,9 @@ async function uploadLogoFile(file) {
   if (file.size > 10 * 1024 * 1024) { error.value = 'A logo precisa ter no máximo 10 MB.'; return }
   uploading.value = true
   error.value = ''
-  const ext = file.name.split('.').pop().toLowerCase()
-  const path = `${biz.business.id}/logo-${Date.now()}.${ext}`
-  const { error: err } = await supabase.storage.from('logos').upload(path, file, { upsert: true })
+  const small = await shrinkImage(file, { max: 512, quality: 0.9 })
+  const path = `${biz.business.id}/logo-${Date.now()}.${small.ext}`
+  const { error: err } = await supabase.storage.from('logos').upload(path, small.file, { upsert: true })
   uploading.value = false
   if (err) { error.value = err.message; return }
   form.value.logo_url = supabase.storage.from('logos').getPublicUrl(path).data.publicUrl
@@ -209,7 +210,7 @@ async function changePassword() {
           <span class="pf-dropzone-icon"><Icon name="image" /></span>
           <strong>Enviar logo</strong>
           <small>Arraste aqui ou clique pra escolher</small>
-          <small class="muted">PNG, JPG ou WEBP · até 10 MB</small>
+          <small class="muted">PNG, JPG ou WEBP · imagem grande é reduzida sozinha</small>
         </div>
         <div v-if="uploading" class="pf-dropzone-loading">Enviando...</div>
       </div>

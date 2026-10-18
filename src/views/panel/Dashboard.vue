@@ -72,7 +72,9 @@ async function loadMenuDashboard(start, end) {
       revenue_by_day: group(sold, (o) => localDay(o.created_at), (o) => localDay(o.created_at))
         .map((g) => ({ day: g.name, revenue: g.revenue, count: g.count })),
       top_services: group(sold.flatMap((o) => o.order_items ?? []), (i) => i.name, (i) => i.name, (i) => Number(i.qty)).slice(0, 5),
-      top_customers: group(sold, (o) => (o.phone ?? '').replace(/\D/g, '') || o.customer_name, (o) => o.customer_name).slice(0, 5),
+      // Só quem deixou telefone: "Venda no balcão" / "Pedido iFood" não são um cliente.
+      top_customers: group(sold.filter((o) => (o.phone ?? '').replace(/\D/g, '').length >= 8),
+        (o) => o.phone.replace(/\D/g, ''), (o) => o.customer_name).slice(0, 5),
       revenue_by_professional: group(sold, (o) => o.payment, (o) => o.payment),
       revenue_by_source: group(sold, (o) => o.source ?? 'site', (o) => o.source ?? 'site')
         .map((g) => ({ source: g.name, revenue: g.revenue, count: g.count })),

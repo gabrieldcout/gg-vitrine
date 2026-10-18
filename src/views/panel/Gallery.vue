@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { shrinkImage } from '@/lib/image'
 import { supabase, unwrap } from '@/lib/supabase'
 import { useBusiness } from '@/lib/business'
 import Icon from '@/components/Icon.vue'
@@ -29,10 +30,11 @@ async function uploadFiles(fileList) {
   if (!files.length) return
   let ok = 0
   for (const file of files) {
-    if (file.size > 5 * 1024 * 1024) { error.value = `"${file.name}" tem mais de 5 MB e foi ignorada.`; continue }
     uploading.value++
-    const path = `${biz.business.id}/gallery/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${file.name.split('.').pop().toLowerCase()}`
-    const { error: err } = await supabase.storage.from('logos').upload(path, file)
+    const small = await shrinkImage(file, { max: 1400 })
+    if (small.file.size > 5 * 1024 * 1024) { uploading.value--; error.value = `"${file.name}" tem mais de 5 MB e foi ignorada.`; continue }
+    const path = `${biz.business.id}/gallery/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${small.ext}`
+    const { error: err } = await supabase.storage.from('logos').upload(path, small.file)
     if (!err) {
       const url = supabase.storage.from('logos').getPublicUrl(path).data.publicUrl
       await supabase.from('gallery_photos').insert({ business_id: biz.business.id, url })
@@ -113,7 +115,7 @@ function openPicker() {
         <strong v-if="uploading > 0">Enviando {{ uploading === 1 ? '1 foto' : `${uploading} fotos` }}...</strong>
         <strong v-else-if="atLimit">Você atingiu o limite de {{ MAX }} fotos</strong>
         <strong v-else>Arraste fotos aqui ou clique pra escolher</strong>
-        <small v-if="!atLimit">PNG, JPG ou WEBP · até 5 MB cada · faltam {{ slotsLeft }} slots</small>
+        <small v-if="!atLimit">PNG, JPG ou WEBP · fotos grandes são reduzidas sozinhas · faltam {{ slotsLeft }} slots</small>
         <small v-else>Remova algumas pra enviar novas.</small>
       </div>
       <button v-if="!atLimit" type="button" class="btn" @click.prevent="openPicker">

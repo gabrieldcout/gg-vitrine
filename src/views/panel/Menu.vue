@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { supabase, unwrap } from '@/lib/supabase'
+import { shrinkImage } from '@/lib/image'
 import { useBusiness } from '@/lib/business'
 import { money, plural } from '@/lib/format'
 import Icon from '@/components/Icon.vue'
@@ -105,12 +106,12 @@ function toggleAvailable(i) {
 async function uploadPhoto(event) {
   const file = event.target.files[0]
   if (!file) return
-  if (file.size > 3 * 1024 * 1024) { error.value = 'A foto precisa ter no máximo 3 MB.'; return }
   uploading.value = true
   error.value = ''
-  const ext = file.name.split('.').pop().toLowerCase()
-  const path = `${biz.business.id}/menu/${Date.now()}.${ext}`
-  const { error: err } = await supabase.storage.from('logos').upload(path, file)
+  const small = await shrinkImage(file, { max: 1000 })
+  if (small.file.size > 5 * 1024 * 1024) { uploading.value = false; error.value = 'A foto precisa ter no máximo 5 MB.'; return }
+  const path = `${biz.business.id}/menu/${Date.now()}.${small.ext}`
+  const { error: err } = await supabase.storage.from('logos').upload(path, small.file)
   uploading.value = false
   if (err) { error.value = err.message; return }
   editing.value.photo_url = supabase.storage.from('logos').getPublicUrl(path).data.publicUrl
