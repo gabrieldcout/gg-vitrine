@@ -171,13 +171,47 @@ function buildMessage(order) {
 const placedLink = computed(() => placed.value && waLink(props.business.phone, buildMessage(placed.value)))
 
 // Avisa o painel que o cliente abriu a conversa (não espera, nem trava o link).
-function markWhatsApp() {
-  if (placed.value?.id) supabase.rpc('mark_order_whatsapp', { p_order: placed.value.id }).then(() => {}, () => {})
+function markWhatsApp(id = placed.value?.id) {
+  if (id) supabase.rpc('mark_order_whatsapp', { p_order: id }).then(() => {}, () => {})
+}
+
+// ---------------- Último pedido (evita pedido duplicado) ----------------
+// Fica guardado no celular do cliente, sem login: se ele voltar achando que
+// o pedido não foi, vê que já foi e pode só mandar no WhatsApp.
+const LAST_KEY = `gg-vitrine-ultimo-pedido-${props.business.id}`
+const RECENT_MS = 3 * 60 * 60 * 1000
+function readLast() {
+  try {
+    const v = JSON.parse(localStorage.getItem(LAST_KEY))
+    return v && Date.now() - v.at < RECENT_MS ? v : null
+  } catch { return null }
+}
+const lastOrder = ref(readLast())
+const lastDismissed = ref(false)
+const cartSignature = () => cartLines.value.map((l) => `${l.id}:${l.qty}`).sort().join(',')
+const timeOf = (ms) => new Date(ms).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: tz.value })
+
+function saveLast(order) {
+  const v = { id: order.id, number: order.number, total: order.total, at: Date.now(), sig: cartSignature(), link: placedLink.value }
+  lastOrder.value = v
+  lastDismissed.value = true   // acabou de fazer: o aviso só aparece quando ele voltar
+  try { localStorage.setItem(LAST_KEY, JSON.stringify(v)) } catch { /* sem armazenamento local */ }
 }
 
 async function send() {
   error.value = ''
   if (belowMinimum.value) { error.value = `O pedido mínimo é ${money(store.value.min_order)}.`; return }
+  const last = readLast()
+  if (last && last.sig === cartSignature() &&
+      !confirm(`Você já fez um pedido igual a esse (#${last.number}) às ${timeOf(last.at)}.
+
+` +
+        'Se ainda não mandou no WhatsApp, é só mandar aquele. Quer fazer outro pedido mesmo assim?')) {
+    checkoutOpen.value = false
+    lastDismissed.value = false
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    return
+  }
   const f = form.value
   busy.value = true
   const { data, error: err } = await supabase.rpc('place_order', {
@@ -192,6 +226,7 @@ async function send() {
   busy.value = false
   if (err) { error.value = err.message; return }
   placed.value = data
+  saveLast(data)
 }
 
 // Fechar a janela depois do pedido feito equivale a "fazer outro pedido".
@@ -217,6 +252,18 @@ function scrollTo(id) {
 
 <template>
   <div :style="{ paddingBottom: cartCount ? '90px' : '0' }">
+    <div v-if="lastOrder && !lastDismissed" class="last-order">
+      <div class="last-order-text">
+        <strong>Você já fez o pedido #{{ lastOrder.number }} às {{ timeOf(lastOrder.at) }} ({{ money(lastOrder.total) }})</strong>
+        <small>A loja já recebeu. Se ainda não mandou a mensagem no WhatsApp, toque abaixo.</small>
+      </div>
+      <div class="last-order-actions">
+        <a v-if="lastOrder.link" class="btn small wa-send" :href="lastOrder.link" target="_blank" rel="noopener" @click="markWhatsApp(lastOrder.id)">
+          <Icon name="whatsapp" style="width: 16px; height: 16px" />Enviar no WhatsApp
+        </a>
+        <button type="button" class="btn small secondary" @click="lastDismissed = true">Fazer outro pedido</button>
+      </div>
+    </div>
     <div class="status-row">
       <span :class="['badge', canOrder ? 'green' : 'red']">{{ canOrder ? 'Aberto agora' : 'Fechado' }}</span>
       <button v-if="schedule.length" class="link-btn" @click="showHours = !showHours">{{ showHours ? 'ocultar horários' : 'ver horários' }}</button>
@@ -442,6 +489,11 @@ function scrollTo(id) {
 .pix-box small { display: block; color: var(--silver); font-size: 0.84rem; line-height: 1.4; }
 .pix-key { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
 .pix-key code { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 0.95rem; font-weight: 700; color: var(--text); }
+.last-order { margin-bottom: 14px; padding: 14px; border-radius: 16px; border: 1px solid rgba(37, 211, 102, 0.45); background: rgba(37, 211, 102, 0.1); }
+.last-order-text strong { display: block; font-size: 0.95rem; }
+.last-order-text small { display: block; color: var(--silver); margin-top: 3px; font-size: 0.84rem; }
+.last-order-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.last-order-actions .btn { flex: 1 1 auto; justify-content: center; }
 .wa-send { background: #25d366; color: #fff; box-shadow: 0 0 24px rgba(37, 211, 102, 0.4); margin-top: 6px; }
 .wa-send:hover { background: #1ebe5b; }
 

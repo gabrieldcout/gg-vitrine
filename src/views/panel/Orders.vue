@@ -16,6 +16,14 @@ const filter = ref('abertos')
 const error = ref('')
 const lastCount = ref(null)
 const showManual = ref(false)
+
+// Olhinho: esconde o valor vendido (lembrado neste aparelho).
+const HIDE_KEY = 'gg-esconder-valores'
+const hideValues = ref((() => { try { return localStorage.getItem(HIDE_KEY) === '1' } catch { return false } })())
+function toggleValues() {
+  hideValues.value = !hideValues.value
+  try { localStorage.setItem(HIDE_KEY, hideValues.value ? '1' : '0') } catch { /* sem armazenamento local */ }
+}
 const manualMsg = ref('')
 
 function manualSaved(order) {
@@ -126,9 +134,15 @@ function customerLink(o) {
       <h1>Pedidos</h1>
     </div>
     <div class="orders-head-right">
-      <div class="card stat" style="padding: 12px 18px">
+      <div class="card stat sold-today" style="padding: 12px 18px">
         <div class="label">Vendido hoje</div>
-        <div class="value" style="font-size: 1.4rem">{{ money(todayTotal) }}</div>
+        <div class="sold-row">
+          <div class="value" style="font-size: 1.4rem">{{ hideValues ? 'R$ •••••' : money(todayTotal) }}</div>
+          <button type="button" class="eye-btn" :title="hideValues ? 'Mostrar valor' : 'Esconder valor'"
+                  :aria-label="hideValues ? 'Mostrar valor' : 'Esconder valor'" @click="toggleValues">
+            <Icon :name="hideValues ? 'eye-off' : 'eye'" />
+          </button>
+        </div>
       </div>
       <button class="btn" @click="showManual = true"><Icon name="plus" style="width: 16px; height: 16px" />Lançar venda avulsa</button>
     </div>
@@ -201,6 +215,11 @@ function customerLink(o) {
 
 <style scoped>
 .orders { display: grid; gap: 12px; }
+.sold-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.eye-btn { width: 34px; height: 34px; border-radius: 999px; display: grid; place-items: center; flex-shrink: 0;
+  background: transparent; border: 1px solid var(--border); color: var(--muted); cursor: pointer; }
+.eye-btn:hover { color: var(--text); border-color: var(--border-strong); }
+.eye-btn svg { width: 17px; height: 17px; }
 .orders-head-right { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
 @media (max-width: 640px) { .orders-head-right { width: 100%; } }
 .card + .card { margin-top: 0; }
