@@ -15,7 +15,6 @@ const tz = computed(() => biz.business.timezone)
 const orders = ref([])
 const filter = ref('abertos')
 const error = ref('')
-const lastCount = ref(null)
 const showManual = ref(false)
 
 // Olhinho: esconde o valor vendido (lembrado neste aparelho).
@@ -31,8 +30,91 @@ function manualSaved(order) {
   showManual.value = false
   manualMsg.value = `Venda #${order.number} lançada.`
   setTimeout(() => { manualMsg.value = '' }, 4000)
-  lastCount.value = null   // não tocar o bipe de pedido novo por causa dela
+  seen?.add(order.id)   // venda lançada aqui não é "pedido novo chegando"
   load()
+}
+
+// ---------------- Pedido novo: som, notificação, impressão ----------------
+// Preferências deste aparelho (o balcão pode imprimir e o celular do dono não).
+const pref = (key, def) => { try { const v = localStorage.getItem(key); return v === null ? def : v === '1' } catch { return def } }
+const setPref = (key, v) => { try { localStorage.setItem(key, v ? '1' : '0') } catch { /* sem armazenamento local */ } }
+const soundOn = ref(pref('gg-pedidos-som', true))
+const autoPrint = ref(pref('gg-pedidos-imprimir', false))
+const audioReady = ref(false)
+const showPrintHelp = ref(false)
+function toggleSound() { soundOn.value = !soundOn.value; setPref('gg-pedidos-som', soundOn.value); if (soundOn.value) enableSound() }
+function toggleAutoPrint() { autoPrint.value = !autoPrint.value; setPref('gg-pedidos-imprimir', autoPrint.value) }
+
+// Aceite automático: fica no banco (vale mesmo com o painel fechado). Só aparece
+// depois da migration 0022.
+const hasAutoAccept = computed(() => 'auto_accept' in biz.business)
+async function toggleAutoAccept() {
+  const value = !biz.business.auto_accept
+  const { error: err } = await supabase.from('businesses').update({ auto_accept: value }).eq('id', biz.business.id)
+  if (err) { error.value = err.message; return }
+  biz.business.auto_accept = value
+}
+
+// O navegador só libera som depois de um toque na página: o primeiro toque em
+// qualquer lugar já "destrava" (ou o botão Ativar som).
+let audio
+async function enableSound() {
+  try {
+    audio ??= new (window.AudioContext || window.webkitAudioContext)()
+    if (audio.state === 'suspended') await audio.resume()
+    audioReady.value = audio.state === 'running'
+  } catch { /* sem áudio */ }
+  if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {})
+}
+function testSound() { enableSound().then(() => alarm()) }
+
+// Três toques fortes, repetidos duas vezes: dá pra ouvir com o balcão cheio.
+function alarm() {
+  if (!soundOn.value || !audio || audio.state !== 'running') return
+  const t0 = audio.currentTime
+  for (let r = 0; r < 2; r++) {
+    for (const [i, freq] of [988, 1319, 1568].entries()) {
+      const at = t0 + r * 0.9 + i * 0.17
+      const osc = audio.createOscillator()
+      const gain = audio.createGain()
+      osc.type = 'square'
+      osc.frequency.value = freq
+      gain.gain.setValueAtTime(0.0001, at)
+      gain.gain.exponentialRampToValueAtTime(0.35, at + 0.02)
+      gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.16)
+      osc.connect(gain).connect(audio.destination)
+      osc.start(at)
+      osc.stop(at + 0.17)
+    }
+  }
+}
+
+function notify(o) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return
+  try {
+    const n = new Notification(`Pedido #${o.number} · ${o.customer_name}`, {
+      body: `${money(o.total)} · ${o.mode === 'entrega' ? 'Entrega' : 'Retirada'}`, tag: o.id,
+    })
+    n.onclick = () => { window.focus(); n.close() }
+  } catch { /* sem notificação */ }
+}
+
+// Imprime um por vez (duas janelas de impressão juntas se atrapalham).
+let printQueue = Promise.resolve()
+function queuePrint(o) {
+  printQueue = printQueue.then(() => { printOrder(o, biz.business); return new Promise((r) => setTimeout(r, 2500)) })
+}
+
+let seen = null   // ids de pedido já vistos nesta tela
+function handleNew(list) {
+  if (!seen) { seen = new Set(list.map((o) => o.id)); return }
+  const fresh = list.filter((o) => !seen.has(o.id) && (o.source ?? 'site') === 'site').reverse()
+  list.forEach((o) => seen.add(o.id))
+  if (!fresh.length) return
+  hasNew.value = true
+  alarm()
+  fresh.forEach(notify)
+  if (autoPrint.value) fresh.forEach(queuePrint)
 }
 const hasNew = ref(false)
 
@@ -60,40 +142,22 @@ async function load() {
   try {
     orders.value = unwrap(await supabase.from('orders').select('*, order_items(name, qty, unit_price, total)')
       .eq('business_id', biz.business.id).order('created_at', { ascending: false }).limit(1000))
-    const openCount = orders.value.filter((o) => o.status === 'novo').length
-    if (lastCount.value !== null && openCount > lastCount.value) {
-      hasNew.value = true
-      beep()
-    }
-    lastCount.value = openCount
+    handleNew(orders.value)
   } catch (e) {
     error.value = e.message
   }
 }
 
-// Bipe curto quando chega pedido novo. O navegador só libera som depois que a
-// pessoa clicou em algo na página, então pode não tocar no primeiro pedido.
-let audio
-function beep() {
-  try {
-    audio ??= new (window.AudioContext || window.webkitAudioContext)()
-    for (const [i, freq] of [880, 1175].entries()) {
-      const osc = audio.createOscillator()
-      const gain = audio.createGain()
-      osc.frequency.value = freq
-      gain.gain.setValueAtTime(0.25, audio.currentTime + i * 0.18)
-      gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + i * 0.18 + 0.16)
-      osc.connect(gain).connect(audio.destination)
-      osc.start(audio.currentTime + i * 0.18)
-      osc.stop(audio.currentTime + i * 0.18 + 0.17)
-    }
-  } catch { /* sem áudio */ }
-}
-
 // Atualiza sozinho para quem deixa o painel aberto no balcão.
 let timer
-onMounted(() => { load(); timer = setInterval(load, 20000) })
-onUnmounted(() => clearInterval(timer))
+const unlock = () => { if (soundOn.value) enableSound() }
+onMounted(() => {
+  load()
+  timer = setInterval(load, 15000)
+  document.addEventListener('pointerdown', unlock, { once: true })
+  if (soundOn.value) enableSound()   // funciona se o navegador já liberou o som antes
+})
+onUnmounted(() => { clearInterval(timer); document.removeEventListener('pointerdown', unlock) })
 
 async function setStatus(o, status) {
   const { error: err } = await supabase.from('orders').update({ status }).eq('id', o.id)
@@ -107,8 +171,9 @@ function waState(o) {
   // Só pedido feito pela vitrine passa pelo WhatsApp (venda avulsa/iFood/99 não).
   if (!('wa_clicked_at' in o) || o.status === 'cancelado' || (o.source && o.source !== 'site')) return null
   if (o.wa_clicked_at) return 'ok'
-  // Só alerta enquanto o pedido está "Novo": depois disso a loja já tratou com o cliente.
-  return o.status === 'novo' && Date.now() - new Date(o.created_at).getTime() > 3 * 60000 ? 'missing' : null
+  // Só alerta no começo do pedido (com aceite automático ele já chega "Preparando");
+  // depois de pronto/entregue a loja já tratou com o cliente.
+  return ['novo', 'preparando'].includes(o.status) && Date.now() - new Date(o.created_at).getTime() > 3 * 60000 ? 'missing' : null
 }
 
 // Confirma antes de cancelar: o botão fica do lado dos outros e é fácil tocar sem querer.
@@ -150,6 +215,36 @@ function customerLink(o) {
     </div>
   </div>
   <ManualOrder v-if="showManual" @close="showManual = false" @saved="manualSaved" />
+
+  <div class="order-settings card">
+    <label v-if="hasAutoAccept" class="opt">
+      <input type="checkbox" :checked="biz.business.auto_accept" @change="toggleAutoAccept" />
+      <span><strong>Aceitar pedidos automaticamente</strong><small>Pedido do site já chega como "Preparando". Vale mesmo com o painel fechado.</small></span>
+    </label>
+    <label class="opt">
+      <input type="checkbox" :checked="soundOn" @change="toggleSound" />
+      <span><strong>Som e notificação de pedido novo</strong><small>Neste aparelho, com esta tela aberta.</small></span>
+    </label>
+    <label class="opt">
+      <input type="checkbox" :checked="autoPrint" @change="toggleAutoPrint" />
+      <span><strong>Imprimir pedidos novos automaticamente</strong><small>Neste aparelho, com esta tela aberta.
+        <button type="button" class="link-btn" @click.prevent="showPrintHelp = !showPrintHelp">Imprimir sem a janela de confirmação</button></small></span>
+    </label>
+    <div v-if="showPrintHelp" class="print-help">
+      <p>O navegador sempre pergunta antes de imprimir, por segurança. Pra imprimir direto no computador do balcão:</p>
+      <ol>
+        <li>Deixe a impressora da comanda como <strong>impressora padrão</strong> do Windows.</li>
+        <li>Clique com o botão direito no atalho do <strong>Google Chrome</strong> e escolha <strong>Propriedades</strong>.</li>
+        <li>No campo <strong>Destino</strong>, no final (depois das aspas), acrescente um espaço e <code>--kiosk-printing</code>.</li>
+        <li>Feche todas as janelas do Chrome e abra de novo por esse atalho.</li>
+      </ol>
+      <p>Pronto: a comanda sai direto, sem perguntar, no botão Imprimir e na impressão automática.</p>
+    </div>
+    <button v-if="soundOn && !audioReady" type="button" class="btn small sound-btn" @click="testSound">
+      <Icon name="bell" style="width: 15px; height: 15px" />Ativar som
+    </button>
+    <button v-else-if="soundOn" type="button" class="link-btn sound-btn" @click="testSound">Testar som</button>
+  </div>
   <div v-if="manualMsg" class="success">{{ manualMsg }}</div>
 
   <div v-if="hasNew" class="success spread" @click="hasNew = false">
@@ -217,6 +312,17 @@ function customerLink(o) {
 
 <style scoped>
 .orders { display: grid; gap: 12px; }
+.order-settings { display: grid; gap: 10px; margin-bottom: 14px; padding: 14px 16px; }
+.order-settings .opt { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.order-settings .opt input { margin-top: 3px; flex-shrink: 0; }
+.order-settings .opt strong { display: block; font-size: 0.92rem; }
+.order-settings .opt small { display: block; color: var(--muted); font-size: 0.8rem; margin-top: 2px; }
+.order-settings .link-btn { font-size: 0.8rem; padding: 0; }
+.print-help { font-size: 0.85rem; color: var(--silver); padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); }
+.print-help p { margin: 0 0 6px; }
+.print-help ol { margin: 0 0 6px; padding-left: 20px; display: grid; gap: 4px; }
+.print-help code { background: rgba(255, 255, 255, 0.08); padding: 1px 5px; border-radius: 5px; }
+.sound-btn { justify-self: start; }
 .sold-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .eye-btn { width: 34px; height: 34px; border-radius: 999px; display: grid; place-items: center; flex-shrink: 0;
   background: transparent; border: 1px solid var(--border); color: var(--muted); cursor: pointer; }
