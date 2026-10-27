@@ -1,8 +1,8 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { supabase, unwrap } from '@/lib/supabase'
 import { useBusiness } from '@/lib/business'
-import { money, formatTime, formatDate, todayISO, zonedToUtc } from '@/lib/format'
+import { money, formatTime, formatDate, todayISO, addDaysISO, zonedToUtc } from '@/lib/format'
 import { waLink } from '@/lib/whatsapp'
 import { printOrder } from '@/lib/print'
 import ManualOrder from '@/components/ManualOrder.vue'
@@ -125,11 +125,44 @@ const STATUS = {
   entregue: { label: 'Entregue', badge: '' },
   cancelado: { label: 'Cancelado', badge: 'red' },
 }
-const FILTERS = { abertos: 'Em aberto', hoje: 'Hoje', entregues: 'Entregues', cancelados: 'Cancelados', todos: 'Todos' }
+const FILTERS = { abertos: 'Em aberto', entregues: 'Entregues', cancelados: 'Cancelados', todos: 'Todos' }
 
-const visible = computed(() => orders.value.filter((o) => {
+// Período: um dia ou um mês. Busca direto no banco (a lista normal só traz os
+// pedidos mais recentes).
+const PERIODS = { todos: 'Qualquer data', dia: 'Dia', mes: 'Mês' }
+const period = ref('todos')
+const day = ref(todayISO(tz.value))
+const month = ref(todayISO(tz.value).slice(0, 7))
+const periodOrders = ref([])
+const periodRange = computed(() => {
+  if (period.value === 'dia' && day.value) return [day.value, addDaysISO(day.value, 1)]
+  if (period.value === 'mes' && month.value) {
+    const [y, m] = month.value.split('-').map(Number)
+    return [`${month.value}-01`, new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 10)]
+  }
+  return null
+})
+async function loadPeriod() {
+  const range = periodRange.value
+  if (!range) { periodOrders.value = []; return }
+  try {
+    periodOrders.value = unwrap(await supabase.from('orders').select('*, order_items(name, qty, unit_price, total)')
+      .eq('business_id', biz.business.id)
+      .gte('created_at', zonedToUtc(range[0], '00:00', tz.value).toISOString())
+      .lt('created_at', zonedToUtc(range[1], '00:00', tz.value).toISOString())
+      .order('created_at', { ascending: false }).limit(5000))
+  } catch (e) {
+    error.value = e.message
+  }
+}
+watch(period, (p, old) => {
+  // Olhando um período, o normal é querer ver tudo dele, não só os em aberto.
+  if (old === 'todos' && filter.value === 'abertos') filter.value = 'todos'
+})
+watch(periodRange, loadPeriod)
+
+const visible = computed(() => (periodRange.value ? periodOrders.value : orders.value).filter((o) => {
   if (filter.value === 'abertos') return ['novo', 'preparando', 'pronto'].includes(o.status)
-  if (filter.value === 'hoje') return new Date(o.created_at) >= zonedToUtc(todayISO(tz.value), '00:00', tz.value)
   if (filter.value === 'entregues') return o.status === 'entregue'
   if (filter.value === 'cancelados') return o.status === 'cancelado'
   return true
@@ -137,12 +170,15 @@ const visible = computed(() => orders.value.filter((o) => {
 const todayTotal = computed(() => orders.value
   .filter((o) => o.status !== 'cancelado' && new Date(o.created_at) >= zonedToUtc(todayISO(tz.value), '00:00', tz.value))
   .reduce((s, o) => s + Number(o.total), 0))
+const periodSold = computed(() => periodOrders.value.filter((o) => o.status !== 'cancelado'))
+const periodTotal = computed(() => periodSold.value.reduce((s, o) => s + Number(o.total), 0))
 
 async function load() {
   try {
     orders.value = unwrap(await supabase.from('orders').select('*, order_items(name, qty, unit_price, total)')
       .eq('business_id', biz.business.id).order('created_at', { ascending: false }).limit(1000))
     handleNew(orders.value)
+    if (periodRange.value) loadPeriod()
   } catch (e) {
     error.value = e.message
   }
@@ -252,8 +288,20 @@ function customerLink(o) {
   </div>
   <div v-if="error" class="error">{{ error }}</div>
 
-  <div class="chips" style="margin-bottom: 16px">
+  <div class="chips" style="margin-bottom: 10px">
     <button v-for="(label, key) in FILTERS" :key="key" class="chip" :class="{ selected: filter === key }" @click="filter = key">{{ label }}</button>
+  </div>
+  <div class="period">
+    <div class="chips">
+      <button v-for="(label, key) in PERIODS" :key="key" class="chip" :class="{ selected: period === key }" @click="period = key">{{ label }}</button>
+    </div>
+    <input v-if="period === 'dia'" v-model="day" type="date" class="period-input" aria-label="Dia" />
+    <input v-else-if="period === 'mes'" v-model="month" type="month" class="period-input" aria-label="Mês" />
+    <span v-if="periodRange" class="period-sum">
+      {{ periodSold.length }} {{ periodSold.length === 1 ? 'pedido' : 'pedidos' }} ·
+      <strong>{{ hideValues ? 'R$ •••••' : money(periodTotal) }}</strong>
+      &nbsp;<small class="muted">(sem cancelados)</small>
+    </span>
   </div>
 
   <div v-if="!orders.length && !error" class="card" style="text-align: center">
@@ -312,6 +360,9 @@ function customerLink(o) {
 
 <style scoped>
 .orders { display: grid; gap: 12px; }
+.period { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 16px; }
+.period-input { width: auto; padding: 7px 10px; }
+.period-sum { font-size: 0.92rem; }
 .order-settings { display: grid; gap: 10px; margin-bottom: 14px; padding: 14px 16px; }
 .order-settings .opt { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
 .order-settings .opt input { margin-top: 3px; flex-shrink: 0; }

@@ -24,7 +24,7 @@ const pad = (n) => String(n).padStart(2, '0')
 const now = new Date()
 const form = ref({
   name: '', phone: '', mode: 'retirada', address: '', zone: '', fee: '',
-  payment: 'PIX', notes: '', done: true, source: 'balcao',
+  payment: 'PIX', notes: '', done: false, source: 'balcao',
   at: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`,
 })
 
