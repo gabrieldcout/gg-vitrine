@@ -56,37 +56,64 @@ async function toggleAutoAccept() {
 }
 
 // O navegador só libera som depois de um toque na página: o primeiro toque em
-// qualquer lugar já "destrava" (ou o botão Ativar som).
-let audio
+// qualquer lugar já "destrava" (ou o botão Ativar som). O alarme é um arquivo
+// de áudio gerado aqui e tocado num <audio>, que no iPhone toca mesmo com o
+// botão do silencioso ligado (o Web Audio fica mudo nesse caso).
+let player
+function alarmUrl() {
+  const rate = 22050
+  const notes = []
+  for (let r = 0; r < 2; r++) [988, 1319, 1568].forEach((f, i) => notes.push([r * 0.9 + i * 0.17, f]))
+  const n = Math.round(rate * 1.9)
+  const buf = new DataView(new ArrayBuffer(44 + n * 2))
+  const str = (o, t) => [...t].forEach((c, k) => buf.setUint8(o + k, c.charCodeAt(0)))
+  str(0, 'RIFF'); buf.setUint32(4, 36 + n * 2, true); str(8, 'WAVEfmt ')
+  buf.setUint32(16, 16, true); buf.setUint16(20, 1, true); buf.setUint16(22, 1, true)
+  buf.setUint32(24, rate, true); buf.setUint32(28, rate * 2, true); buf.setUint16(32, 2, true); buf.setUint16(34, 16, true)
+  str(36, 'data'); buf.setUint32(40, n * 2, true)
+  for (let k = 0; k < n; k++) {
+    const t = k / rate
+    let v = 0
+    for (const [at, f] of notes) {
+      const dt = t - at
+      if (dt < 0 || dt > 0.16) continue
+      const env = Math.min(1, dt / 0.01) * Math.min(1, (0.16 - dt) / 0.03)
+      v += (Math.sin(2 * Math.PI * f * dt) > 0 ? 1 : -1) * 0.55 * env   // onda quadrada: corta o barulho do balcão
+    }
+    buf.setInt16(44 + k * 2, Math.max(-1, Math.min(1, v)) * 32767, true)
+  }
+  return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }))
+}
 async function enableSound() {
   try {
-    audio ??= new (window.AudioContext || window.webkitAudioContext)()
-    if (audio.state === 'suspended') await audio.resume()
-    audioReady.value = audio.state === 'running'
-  } catch { /* sem áudio */ }
+    player ??= new Audio(alarmUrl())
+    // Toca mudo uma vez pra o navegador liberar o som desta página.
+    player.muted = true
+    await player.play()
+    player.pause()
+    player.currentTime = 0
+    player.muted = false
+    audioReady.value = true
+  } catch {
+    if (player) player.muted = false
+  }
   if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {})
 }
-function testSound() { enableSound().then(() => alarm()) }
+async function testSound() { await enableSound(); alarm() }
 
 // Três toques fortes, repetidos duas vezes: dá pra ouvir com o balcão cheio.
 function alarm() {
-  if (!soundOn.value || !audio || audio.state !== 'running') return
-  const t0 = audio.currentTime
-  for (let r = 0; r < 2; r++) {
-    for (const [i, freq] of [988, 1319, 1568].entries()) {
-      const at = t0 + r * 0.9 + i * 0.17
-      const osc = audio.createOscillator()
-      const gain = audio.createGain()
-      osc.type = 'square'
-      osc.frequency.value = freq
-      gain.gain.setValueAtTime(0.0001, at)
-      gain.gain.exponentialRampToValueAtTime(0.35, at + 0.02)
-      gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.16)
-      osc.connect(gain).connect(audio.destination)
-      osc.start(at)
-      osc.stop(at + 0.17)
-    }
-  }
+  if (!soundOn.value || !player) return
+  player.currentTime = 0
+  player.play().catch(() => { audioReady.value = false })   // navegador bloqueou: volta o botão Ativar som
+}
+
+// Mantém a tela do celular/tablet acesa com a tela de pedidos aberta: com a
+// tela apagada o navegador para e o pedido novo não toca.
+let wakeLock = null
+async function keepAwake() {
+  if (!soundOn.value || document.visibilityState !== 'visible' || !('wakeLock' in navigator)) return
+  try { wakeLock = await navigator.wakeLock.request('screen') } catch { /* sem suporte ou bateria fraca */ }
 }
 
 function notify(o) {
@@ -186,14 +213,32 @@ async function load() {
 
 // Atualiza sozinho para quem deixa o painel aberto no balcão.
 let timer
-const unlock = () => { if (soundOn.value) enableSound() }
+const unlock = () => {
+  if (!soundOn.value) return
+  if (!audioReady.value) enableSound()
+  if (!wakeLock) keepAwake()
+}
+// Voltou pra tela (desbloqueou o celular, trocou de aba): busca na hora e pede
+// de novo pra manter a tela acesa.
+function onVisible() {
+  if (document.visibilityState !== 'visible') return
+  load()
+  wakeLock = null
+  keepAwake()
+}
 onMounted(() => {
   load()
   timer = setInterval(load, 15000)
-  document.addEventListener('pointerdown', unlock, { once: true })
-  if (soundOn.value) enableSound()   // funciona se o navegador já liberou o som antes
+  document.addEventListener('pointerdown', unlock)
+  document.addEventListener('visibilitychange', onVisible)
+  if (soundOn.value) { enableSound(); keepAwake() }   // funciona se o navegador já liberou o som antes
 })
-onUnmounted(() => { clearInterval(timer); document.removeEventListener('pointerdown', unlock) })
+onUnmounted(() => {
+  clearInterval(timer)
+  document.removeEventListener('pointerdown', unlock)
+  document.removeEventListener('visibilitychange', onVisible)
+  wakeLock?.release().catch(() => {})
+})
 
 async function setStatus(o, status) {
   const { error: err } = await supabase.from('orders').update({ status }).eq('id', o.id)
@@ -276,8 +321,8 @@ function customerLink(o) {
       </ol>
       <p>Pronto: a comanda sai direto, sem perguntar, no botão Imprimir e na impressão automática.</p>
     </div>
-    <button v-if="soundOn && !audioReady" type="button" class="btn small sound-btn" @click="testSound">
-      <Icon name="bell" style="width: 15px; height: 15px" />Ativar som
+    <button v-if="soundOn && !audioReady" type="button" class="btn small sound-btn sound-off" @click="testSound">
+      <Icon name="bell" style="width: 15px; height: 15px" />Som desativado: toque aqui pra ativar
     </button>
     <button v-else-if="soundOn" type="button" class="link-btn sound-btn" @click="testSound">Testar som</button>
   </div>
@@ -374,6 +419,8 @@ function customerLink(o) {
 .print-help ol { margin: 0 0 6px; padding-left: 20px; display: grid; gap: 4px; }
 .print-help code { background: rgba(255, 255, 255, 0.08); padding: 1px 5px; border-radius: 5px; }
 .sound-btn { justify-self: start; }
+.sound-off { animation: pulse-sound 1.6s ease-in-out infinite; }
+@keyframes pulse-sound { 50% { box-shadow: 0 0 0 6px var(--brand-glow); } }
 .sold-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .eye-btn { width: 34px; height: 34px; border-radius: 999px; display: grid; place-items: center; flex-shrink: 0;
   background: transparent; border: 1px solid var(--border); color: var(--muted); cursor: pointer; }
