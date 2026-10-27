@@ -14,6 +14,8 @@ const PERIODS = [
   { key: 'month', label: 'Este mês' },
   { key: 'lastMonth', label: 'Mês passado' },
   { key: '30d', label: 'Últimos 30 dias' },
+  { key: 'day', label: 'Escolher dia' },
+  { key: 'pickMonth', label: 'Escolher mês' },
 ]
 
 // Cardápio: os números saem dos pedidos (calculados aqui no navegador);
@@ -83,6 +85,10 @@ async function loadMenuDashboard(start, end) {
 }
 
 const period = ref('30d')
+// Dia / mês escolhidos no calendário (horário local, igual aos outros períodos).
+const localISO = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const pickDay = ref(localISO(new Date()))
+const pickMonth = ref(localISO(new Date()).slice(0, 7))
 const data = ref(null)
 const loading = ref(false)
 const error = ref('')
@@ -110,6 +116,18 @@ function periodRange(p) {
     start.setDate(1)
     start.setHours(0, 0, 0, 0)
     end.setMonth(start.getMonth() + 1, 0)
+    end.setHours(23, 59, 59, 999)
+  } else if (p === 'day' && pickDay.value) {
+    const [y, m, d] = pickDay.value.split('-').map(Number)
+    start.setFullYear(y, m - 1, d)
+    start.setHours(0, 0, 0, 0)
+    end.setTime(start.getTime())
+    end.setHours(23, 59, 59, 999)
+  } else if (p === 'pickMonth' && pickMonth.value) {
+    const [y, m] = pickMonth.value.split('-').map(Number)
+    start.setFullYear(y, m - 1, 1)
+    start.setHours(0, 0, 0, 0)
+    end.setFullYear(y, m, 0)
     end.setHours(23, 59, 59, 999)
   } else if (p === 'lastMonth') {
     start.setMonth(now.getMonth() - 1, 1)
@@ -142,7 +160,7 @@ async function load() {
 }
 
 onMounted(load)
-watch(period, load)
+watch([period, pickDay, pickMonth], load)
 
 // ---------- Métricas ----------
 const totalRevenue = computed(() => Number(data.value?.total_revenue ?? 0))
@@ -221,7 +239,11 @@ const bySource = computed(() => data.value?.revenue_by_source ?? [])
 const bySourceMax = computed(() => Math.max(1, ...bySource.value.map((s) => Number(s.revenue))))
 const isEmpty = computed(() => !loading.value && data.value && totalAppts.value === 0)
 
-const periodLabel = computed(() => PERIODS.find((p) => p.key === period.value)?.label ?? '')
+const periodLabel = computed(() => {
+  if (period.value === 'day' && pickDay.value) return `Dia ${pickDay.value.split('-').reverse().join('/')}`
+  if (period.value === 'pickMonth' && pickMonth.value) return `Mês ${pickMonth.value.split('-').reverse().join('/')}`
+  return PERIODS.find((p) => p.key === period.value)?.label ?? ''
+})
 
 // ---------- Lançamento de venda avulsa ----------
 const showSale = ref(false)
@@ -317,6 +339,10 @@ async function saveSale() {
             @click="period = p.key">
       {{ p.label }}
     </button>
+  </div>
+  <div v-if="period === 'day' || period === 'pickMonth'" class="period-pick">
+    <input v-if="period === 'day'" v-model="pickDay" type="date" aria-label="Dia" />
+    <input v-else v-model="pickMonth" type="month" aria-label="Mês" />
   </div>
 
   <div v-if="error" class="alert alert-danger">
@@ -713,6 +739,8 @@ async function saveSale() {
   transition: color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
 }
 .period-chip:hover { color: var(--text); }
+.period-pick { margin: -8px 0 20px; }
+.period-pick input { width: auto; padding: 8px 12px; }
 .period-chip.on {
   background: linear-gradient(120deg, var(--brand), var(--brand-strong));
   color: var(--brand-contrast);
