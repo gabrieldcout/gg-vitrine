@@ -20,6 +20,7 @@ const routes = [
       { path: 'bloqueios', component: () => import('@/views/panel/TimeOff.vue') },
       { path: 'financeiro', component: () => import('@/views/panel/Dashboard.vue') },
       { path: 'pedidos', component: () => import('@/views/panel/Orders.vue') },
+      { path: 'fila', component: () => import('@/views/panel/Queue.vue') },
       { path: 'cardapio', component: () => import('@/views/panel/Menu.vue') },
       { path: 'funcionamento', component: () => import('@/views/panel/Store.vue') },
       { path: 'galeria', component: () => import('@/views/panel/Gallery.vue') },

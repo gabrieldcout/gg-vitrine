@@ -12,7 +12,8 @@ const qr = ref('')
 const copied = ref(false)
 const bioCopied = ref(false)
 const isMenu = computed(() => biz.business.kind === 'cardapio')
-const cta = computed(() => (isMenu.value ? 'Peça' : 'Agende'))
+const isQueue = computed(() => biz.business.kind === 'fila')
+const cta = computed(() => (isMenu.value ? 'Peça' : isQueue.value ? 'Entre na fila' : 'Agende'))
 
 onMounted(async () => {
   qr.value = await QRCode.toDataURL(link.value, {
@@ -33,7 +34,7 @@ async function copyBio() {
   setTimeout(() => { bioCopied.value = false }, 2000)
 }
 
-const shareText = computed(() => `${cta.value} ${isMenu.value ? 'em' : 'com'} ${biz.business.name} pelo link: ${link.value}`)
+const shareText = computed(() => `${cta.value} ${isMenu.value ? 'em' : isQueue.value ? 'da' : 'com'} ${biz.business.name} pelo link: ${link.value}`)
 const whatsappShare = computed(() => `https://wa.me/?text=${encodeURIComponent(shareText.value)}`)
 const bioText = computed(() => `${cta.value} aqui 👇\n${link.value}`)
 
@@ -56,7 +57,7 @@ function printPoster() {
     <p class="eyebrow sh-eyebrow">Divulgação</p>
     <h1>Divulgar sua vitrine</h1>
     <p class="muted sh-lede">
-      Compartilhe seu link em todo lugar — WhatsApp, Instagram, cartão de visita, cartaz na parede. Quanto mais pessoas virem, mais {{ isMenu ? 'pedidos' : 'agendamentos' }} você recebe.
+      Compartilhe seu link em todo lugar — WhatsApp, Instagram, cartão de visita, cartaz na parede. Quanto mais pessoas virem, mais {{ isMenu ? 'pedidos' : isQueue ? 'clientes' : 'agendamentos' }} você recebe.
     </p>
   </div>
 
@@ -67,7 +68,7 @@ function printPoster() {
         <span class="section-badge"><Icon name="link" /></span>
         <div>
           <h3>Seu link público</h3>
-          <small class="muted">É o mesmo link pra tudo. Clientes clicam, {{ isMenu ? 'montam o pedido' : 'escolhem o horário' }} e pronto.</small>
+          <small class="muted">É o mesmo link pra tudo. Clientes clicam, {{ isMenu ? 'montam o pedido' : isQueue ? 'entram na fila' : 'escolhem o horário' }} e pronto.</small>
         </div>
       </div>
 

@@ -3,7 +3,8 @@
 // quando o plano não inclui o recurso).
 export const PANEL_NAV = [
   { to: '/painel', label: 'Agenda', icon: 'calendar', kinds: ['agenda'] },
-  { to: '/painel/servicos', label: 'Serviços', icon: 'scissors', kinds: ['agenda'] },
+  { to: '/painel/fila', label: 'Fila', icon: 'users', kinds: ['fila'] },
+  { to: '/painel/servicos', label: 'Serviços', icon: 'scissors', kinds: ['agenda', 'fila'] },
   { to: '/painel/profissionais', label: 'Profissionais', staffLabel: true, icon: 'users', kinds: ['agenda'] },
   { to: '/painel/horarios', label: 'Horários', icon: 'clock', kinds: ['agenda'] },
   { to: '/painel/clientes', label: 'Clientes', icon: 'contact', kinds: ['agenda'] },
@@ -16,8 +17,8 @@ export const PANEL_NAV = [
   { to: '/painel/lembretes', label: 'Lembretes', icon: 'bell', feature: 'lembretes', kinds: ['agenda'] },
   { to: '/painel/galeria', label: 'Galeria', icon: 'image', feature: 'galeria' },
   { to: '/painel/avaliacoes', label: 'Avaliações', icon: 'star', feature: 'avaliacoes' },
-  { to: '/painel/fidelidade', label: 'Fidelidade', icon: 'gift', feature: 'fidelidade' },
-  { to: '/painel/cupons', label: 'Cupons', icon: 'tag', feature: 'cupons' },
+  { to: '/painel/fidelidade', label: 'Fidelidade', icon: 'gift', feature: 'fidelidade', kinds: ['agenda', 'cardapio'] },
+  { to: '/painel/cupons', label: 'Cupons', icon: 'tag', feature: 'cupons', kinds: ['agenda', 'cardapio'] },
   { to: '/painel/divulgar', label: 'Divulgar', icon: 'qr' },
   { to: '/painel/tutorial', label: 'Tutorial', icon: 'sparkles', kinds: ['agenda'] },
   { to: '/painel/financeiro', label: 'Financeiro', icon: 'chart' },

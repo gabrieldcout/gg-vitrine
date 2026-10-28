@@ -14,14 +14,25 @@ const PERIODS = [
   { key: 'month', label: 'Este mês' },
   { key: 'lastMonth', label: 'Mês passado' },
   { key: '30d', label: 'Últimos 30 dias' },
+  { key: 'year', label: 'Este ano' },
   { key: 'day', label: 'Escolher dia' },
+  { key: 'pickWeek', label: 'Escolher semana' },
   { key: 'pickMonth', label: 'Escolher mês' },
+  { key: 'pickYear', label: 'Escolher ano' },
 ]
 
 // Cardápio: os números saem dos pedidos (calculados aqui no navegador);
 // agenda: da RPC business_dashboard, a partir dos agendamentos concluídos.
 const isMenu = computed(() => biz.business.kind === 'cardapio')
-const T = computed(() => (isMenu.value
+const isQueue = computed(() => biz.business.kind === 'fila')
+const T = computed(() => (isQueue.value
+  ? { one: 'atendimento', many: 'atendimentos', countLabel: 'Atendimentos', rateLabel: 'Desistências e cancelados',
+      topTitle: 'Top serviços', topSub: 'Os que mais faturaram no período', topEmpty: 'Sem atendimentos no período',
+      byTitle: '', bySub: '',
+      lede: 'Veja seu faturamento, os atendimentos da fila e os serviços e clientes que te rendem mais.',
+      emptyTitle: 'Sem atendimentos nesse período', emptyText: 'Quando você marcar clientes da fila como prontos',
+      emptyCta: 'Ver fila', emptyTo: '/painel/fila', chartHint: 'só entram os atendimentos prontos' }
+  : isMenu.value
   ? { one: 'pedido', many: 'pedidos', countLabel: 'Pedidos', rateLabel: 'Pedidos cancelados',
       topTitle: 'Mais vendidos', topSub: 'Os produtos que mais faturaram no período', topEmpty: 'Sem vendas no período',
       byTitle: 'Faturamento por forma de pagamento', bySub: 'Como seus clientes estão pagando',
@@ -84,11 +95,54 @@ async function loadMenuDashboard(start, end) {
   }
 }
 
+// Fila: mesmo formato, a partir dos clientes marcados como prontos.
+async function loadQueueDashboard(start, end) {
+  const { data: rows, error: err } = await supabase.from('queue_entries')
+    .select('price, status, source, service_name, customer_name, phone, created_at')
+    .eq('business_id', biz.business.id)
+    .gte('created_at', start.toISOString()).lte('created_at', end.toISOString())
+    .limit(10000)
+  if (err) return { error: err }
+  const all = (rows ?? []).filter((e) => e.status === 'pronto' || e.status === 'cancelado')
+  const sold = all.filter((e) => e.status === 'pronto')
+  const group = (list, keyOf, nameOf) => {
+    const m = new Map()
+    for (const x of list) {
+      const k = keyOf(x)
+      const g = m.get(k) ?? { name: nameOf(x), revenue: 0, count: 0 }
+      g.revenue += Number(x.price); g.count += 1
+      m.set(k, g)
+    }
+    return [...m.values()].sort((a, b) => b.revenue - a.revenue)
+  }
+  const total = sold.reduce((t, e) => t + Number(e.price), 0)
+  return {
+    data: {
+      total_revenue: total,
+      total_appointments: sold.length,
+      avg_ticket: sold.length ? Math.round((total / sold.length) * 100) / 100 : 0,
+      no_show_rate: all.length ? Math.round((1000 * (all.length - sold.length)) / all.length) / 10 : 0,
+      revenue_by_day: group(sold, (e) => localDay(e.created_at), (e) => localDay(e.created_at))
+        .map((g) => ({ day: g.name, revenue: g.revenue, count: g.count })),
+      top_services: group(sold, (e) => e.service_name, (e) => e.service_name).slice(0, 5),
+      top_customers: group(sold.filter((e) => (e.phone ?? '').replace(/\D/g, '').length >= 8),
+        (e) => e.phone.replace(/\D/g, ''), (e) => e.customer_name).slice(0, 5),
+      revenue_by_professional: [],
+      revenue_by_source: group(sold, (e) => e.source ?? 'site', (e) => e.source ?? 'site')
+        .map((g) => ({ source: g.name, revenue: g.revenue, count: g.count })),
+    },
+  }
+}
+
 const period = ref('30d')
 // Dia / mês escolhidos no calendário (horário local, igual aos outros períodos).
 const localISO = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const pickDay = ref(localISO(new Date()))
 const pickMonth = ref(localISO(new Date()).slice(0, 7))
+const pickYear = ref(new Date().getFullYear())
+const YEARS = Array.from({ length: new Date().getFullYear() - 2024 }, (_, i) => new Date().getFullYear() - i)
+// Semana escolhida por qualquer dia dela (segunda a domingo).
+const pickWeekDay = ref(localISO(new Date()))
 const data = ref(null)
 const loading = ref(false)
 const error = ref('')
@@ -123,6 +177,21 @@ function periodRange(p) {
     start.setHours(0, 0, 0, 0)
     end.setTime(start.getTime())
     end.setHours(23, 59, 59, 999)
+  } else if (p === 'pickWeek' && pickWeekDay.value) {
+    const [y, m, d] = pickWeekDay.value.split('-').map(Number)
+    start.setFullYear(y, m - 1, d)
+    const dow = start.getDay()
+    start.setDate(start.getDate() + (dow === 0 ? -6 : 1 - dow))
+    start.setHours(0, 0, 0, 0)
+    end.setTime(start.getTime())
+    end.setDate(start.getDate() + 6)
+    end.setHours(23, 59, 59, 999)
+  } else if (p === 'year' || (p === 'pickYear' && pickYear.value)) {
+    const y = p === 'year' ? now.getFullYear() : Number(pickYear.value)
+    start.setFullYear(y, 0, 1)
+    start.setHours(0, 0, 0, 0)
+    end.setFullYear(y, 11, 31)
+    end.setHours(23, 59, 59, 999)
   } else if (p === 'pickMonth' && pickMonth.value) {
     const [y, m] = pickMonth.value.split('-').map(Number)
     start.setFullYear(y, m - 1, 1)
@@ -147,7 +216,9 @@ async function load() {
   loading.value = true
   error.value = ''
   const { start, end } = periodRange(period.value)
-  const { data: r, error: err } = isMenu.value
+  const { data: r, error: err } = isQueue.value
+    ? await loadQueueDashboard(start, end)
+    : isMenu.value
     ? await loadMenuDashboard(start, end)
     : await supabase.rpc('business_dashboard', {
       p_business: biz.business.id,
@@ -160,7 +231,7 @@ async function load() {
 }
 
 onMounted(load)
-watch([period, pickDay, pickMonth], load)
+watch([period, pickDay, pickWeekDay, pickMonth, pickYear], load)
 
 // ---------- Métricas ----------
 const totalRevenue = computed(() => Number(data.value?.total_revenue ?? 0))
@@ -204,7 +275,17 @@ const chartData = computed(() => {
     cursor.setDate(cursor.getDate() + 1)
     if (days.length > 400) break // guard
   }
-  return days
+  // Período longo (ano): uma barra por mês.
+  if (days.length <= 62) return days
+  const MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
+  const months = new Map()
+  for (const d of days) {
+    const key = d.key.slice(0, 7)
+    const g = months.get(key) ?? { key, date: d.date, label: `${MONTHS[d.date.getMonth()]}/${String(d.date.getFullYear()).slice(2)}`, revenue: 0, count: 0 }
+    g.revenue += d.revenue; g.count += d.count
+    months.set(key, g)
+  }
+  return [...months.values()]
 })
 
 const chartMax = computed(() => Math.max(1, ...chartData.value.map((d) => d.revenue)))
@@ -242,6 +323,12 @@ const isEmpty = computed(() => !loading.value && data.value && totalAppts.value 
 const periodLabel = computed(() => {
   if (period.value === 'day' && pickDay.value) return `Dia ${pickDay.value.split('-').reverse().join('/')}`
   if (period.value === 'pickMonth' && pickMonth.value) return `Mês ${pickMonth.value.split('-').reverse().join('/')}`
+  if (period.value === 'pickYear') return `Ano ${pickYear.value}`
+  if (period.value === 'pickWeek') {
+    const { start, end } = periodRange('pickWeek')
+    const f = (d) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
+    return `Semana ${f(start)} a ${f(end)}`
+  }
   return PERIODS.find((p) => p.key === period.value)?.label ?? ''
 })
 
@@ -320,7 +407,7 @@ async function saveSale() {
         {{ T.lede }}
       </p>
     </div>
-    <button v-if="!isMenu" class="btn dash-sale-btn" @click="openSaleModal">
+    <button v-if="!isMenu && !isQueue" class="btn dash-sale-btn" @click="openSaleModal">
       <Icon name="plus" />
       Lançar venda avulsa
     </button>
@@ -340,9 +427,16 @@ async function saveSale() {
       {{ p.label }}
     </button>
   </div>
-  <div v-if="period === 'day' || period === 'pickMonth'" class="period-pick">
+  <div v-if="['day', 'pickWeek', 'pickMonth', 'pickYear'].includes(period)" class="period-pick">
     <input v-if="period === 'day'" v-model="pickDay" type="date" aria-label="Dia" />
-    <input v-else v-model="pickMonth" type="month" aria-label="Mês" />
+    <template v-else-if="period === 'pickWeek'">
+      <input v-model="pickWeekDay" type="date" aria-label="Um dia da semana" />
+      <small class="muted">{{ periodLabel }}</small>
+    </template>
+    <input v-else-if="period === 'pickMonth'" v-model="pickMonth" type="month" aria-label="Mês" />
+    <select v-else v-model="pickYear" aria-label="Ano">
+      <option v-for="y in YEARS" :key="y" :value="y">{{ y }}</option>
+    </select>
   </div>
 
   <div v-if="error" class="alert alert-danger">
@@ -369,7 +463,7 @@ async function saveSale() {
     </p>
     <div class="empty-actions">
       <RouterLink :to="T.emptyTo" class="btn">
-        <Icon :name="isMenu ? 'bag' : 'plus'" />
+        <Icon :name="isMenu ? 'bag' : isQueue ? 'users' : 'plus'" />
         {{ T.emptyCta }}
       </RouterLink>
     </div>
@@ -405,7 +499,7 @@ async function saveSale() {
       <div class="section-head">
         <span class="section-badge"><Icon name="chart" /></span>
         <div>
-          <h3>Faturamento por dia</h3>
+          <h3>{{ chartData[0]?.key.length === 7 ? 'Faturamento por mês' : 'Faturamento por dia' }}</h3>
           <small class="muted">{{ periodLabel }} · {{ T.chartHint }}</small>
         </div>
       </div>
@@ -526,12 +620,12 @@ async function saveSale() {
     </div>
 
     <!-- Cardápio: vendas por canal (site, balcão, telefone, iFood, 99) -->
-    <section v-if="isMenu && bySource.length" class="dash-card">
+    <section v-if="(isMenu || isQueue) && bySource.length" class="dash-card">
       <div class="section-head">
         <span class="section-badge"><Icon name="bag" /></span>
         <div>
-          <h3>Vendas por canal</h3>
-          <small class="muted">De onde vêm seus pedidos. iFood e 99 entram pela venda avulsa.</small>
+          <h3>{{ isQueue ? 'Atendimentos por origem' : 'Vendas por canal' }}</h3>
+          <small class="muted">{{ isQueue ? 'Quem entrou pela vitrine e quem você lançou no balcão.' : 'De onde vêm seus pedidos. iFood e 99 entram pela venda avulsa.' }}</small>
         </div>
       </div>
       <ul class="rank-list">
@@ -740,7 +834,8 @@ async function saveSale() {
 }
 .period-chip:hover { color: var(--text); }
 .period-pick { margin: -8px 0 20px; }
-.period-pick input { width: auto; padding: 8px 12px; }
+.period-pick { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.period-pick input, .period-pick select { width: auto; padding: 8px 12px; }
 .period-chip.on {
   background: linear-gradient(120deg, var(--brand), var(--brand-strong));
   color: var(--brand-contrast);

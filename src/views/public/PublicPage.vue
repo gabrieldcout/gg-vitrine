@@ -14,6 +14,7 @@ import LoyaltySection from '@/components/public/LoyaltySection.vue'
 import Stars from '@/components/public/Stars.vue'
 import AgendaBooking from '@/components/public/AgendaBooking.vue'
 import CatalogOrder from '@/components/public/CatalogOrder.vue'
+import QueueJoin from '@/components/public/QueueJoin.vue'
 import { catalogWord } from '@/config/brand'
 
 // preset: dados prontos (usado pela pré-visualização de desenvolvimento).
@@ -24,9 +25,11 @@ const notFound = ref(false)
 
 const brandStyle = computed(() => brandVars(business.value?.primary_color))
 const isMenu = computed(() => business.value?.kind === 'cardapio')
+const isQueue = computed(() => business.value?.kind === 'fila')
+const queueOpen = ref(true)   // vem do QueueJoin, que consulta a fila
 // Cardápio fora do horário ou com pedidos pausados: o selo do topo não pode dizer "Pedidos online".
-const storeOpen = computed(() => !isMenu.value ||
-  (business.value?.store?.accepting_orders !== false && business.value?.store?.open_now !== false))
+const storeOpen = computed(() => (isQueue.value ? queueOpen.value : !isMenu.value ||
+  (business.value?.store?.accepting_orders !== false && business.value?.store?.open_now !== false)))
 // O cardápio tem a própria barra fixa (sacola), então o botão "Agendar" fixo é só da agenda.
 const showSticky = computed(() => business.value?.live && !isMenu.value)
 
@@ -74,7 +77,7 @@ onBeforeUnmount(() => io?.disconnect())
       <div class="biz-cover">
         <div v-if="business.live" class="biz-live-pill" :class="{ closed: !storeOpen }">
           <span class="dot" />
-          <span>{{ !storeOpen ? 'Fechado agora' : isMenu ? 'Pedidos online' : 'Agendando online' }}</span>
+          <span>{{ !storeOpen ? (isQueue ? 'Fila encerrada' : 'Fechado agora') : isMenu ? 'Pedidos online' : isQueue ? 'Fila online' : 'Agendando online' }}</span>
         </div>
         <div class="container biz-cover-inner">
           <!-- espaço reservado — a logo "flutua" sobre a capa -->
@@ -118,6 +121,15 @@ onBeforeUnmount(() => io?.disconnect())
           <CatalogOrder :business="business" />
         </div>
       </section>
+      <section v-else-if="isQueue" id="agendar" class="pub-section space" data-pub-reveal>
+        <div class="pub-section-head">
+          <span class="eyebrow">Fila online</span>
+          <h2>Entre na fila sem sair de casa</h2>
+        </div>
+        <div class="pub-reveal is-visible">
+          <QueueJoin :business="business" @status="queueOpen = $event" />
+        </div>
+      </section>
       <section v-else id="agendar" class="pub-section space" data-pub-reveal>
         <div class="pub-section-head">
           <span class="eyebrow">Agendamento</span>
@@ -154,7 +166,8 @@ onBeforeUnmount(() => io?.disconnect())
 
     <div v-if="showSticky" class="biz-sticky-cta">
       <button class="btn large" @click="scrollToBooking">
-        <Icon name="calendar" /> Agendar horário
+        <template v-if="isQueue"><Icon name="users" /> Entrar na fila</template>
+        <template v-else><Icon name="calendar" /> Agendar horário</template>
       </button>
     </div>
   </div>

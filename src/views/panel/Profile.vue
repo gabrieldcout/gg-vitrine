@@ -69,6 +69,18 @@ onMounted(() => {
   }
 })
 
+async function setMode(mode) {
+  if (biz.business.kind === mode) return
+  const text = mode === 'fila'
+    ? 'Mudar para fila por ordem de chegada? A vitrine deixa de mostrar horários e passa a mostrar a fila.'
+    : 'Mudar para horário marcado? A vitrine volta a mostrar os horários livres.'
+  if (!confirm(text)) return
+  const { error: err } = await supabase.rpc('set_business_mode', { p_business: biz.business.id, p_mode: mode })
+  if (err) { error.value = err.message; return }
+  biz.business.kind = mode
+  msg.value = mode === 'fila' ? 'Pronto: agora é fila. Gerencie em Fila, no menu.' : 'Pronto: agora é horário marcado.'
+}
+
 async function save() {
   msg.value = error.value = ''
   const { error: err } = await supabase.from('businesses').update(form.value).eq('id', biz.business.id)
@@ -286,13 +298,32 @@ async function changePassword() {
             <span class="pf-preview-chip on">10:00</span>
             <span class="pf-preview-chip">11:00</span>
           </div>
-          <div class="pf-preview-cta">{{ biz.business.kind === 'cardapio' ? 'Fazer pedido' : 'Agendar' }}</div>
+          <div class="pf-preview-cta">{{ biz.business.kind === 'cardapio' ? 'Fazer pedido' : biz.business.kind === 'fila' ? 'Entrar na fila' : 'Agendar' }}</div>
         </div>
       </div>
     </div>
 
-    <!-- ======================= Agenda ======================= -->
+    <!-- ======================= Horário marcado ou fila ======================= -->
     <template v-if="biz.business.kind !== 'cardapio'">
+    <div class="section-head pf-section-head-mt">
+      <span class="section-badge"><Icon name="users" /></span>
+      <div>
+        <h3>Como o cliente é atendido</h3>
+        <small class="muted">Muda o que aparece na vitrine e no menu do painel.</small>
+      </div>
+    </div>
+    <div class="pf-modes">
+      <button type="button" class="pf-mode" :class="{ on: biz.business.kind === 'agenda' }" @click="setMode('agenda')">
+        <Icon name="calendar" /><span><strong>Horário marcado</strong><small>O cliente escolhe o dia e o horário.</small></span>
+      </button>
+      <button type="button" class="pf-mode" :class="{ on: biz.business.kind === 'fila' }" @click="setMode('fila')">
+        <Icon name="users" /><span><strong>Fila por ordem de chegada</strong><small>O cliente entra na fila e vê quantos estão na frente e a previsão.</small></span>
+      </button>
+    </div>
+    </template>
+
+    <!-- ======================= Agenda ======================= -->
+    <template v-if="biz.business.kind === 'agenda'">
     <div class="section-head pf-section-head-mt">
       <span class="section-badge"><Icon name="calendar" /></span>
       <div>
@@ -739,4 +770,13 @@ async function changePassword() {
   .pf-slug { font-size: 0.78rem; padding: 6px 12px; }
   .pf-foot .btn { width: 100%; justify-content: center; }
 }
+.pf-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pf-mode { display: flex; gap: 12px; align-items: flex-start; text-align: left; padding: 14px; border-radius: 14px; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--border); color: var(--text); font: inherit; }
+.pf-mode svg { width: 20px; height: 20px; flex-shrink: 0; color: var(--muted); margin-top: 2px; }
+.pf-mode strong { display: block; }
+.pf-mode small { display: block; color: var(--muted); margin-top: 3px; font-size: 0.82rem; }
+.pf-mode.on { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand); }
+.pf-mode.on svg { color: var(--brand); }
+@media (max-width: 640px) { .pf-modes { grid-template-columns: 1fr; } }
 </style>

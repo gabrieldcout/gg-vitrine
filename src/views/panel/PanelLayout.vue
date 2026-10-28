@@ -38,9 +38,9 @@ const panelHome = computed(() => homeFor(kind.value))
 
 const shareText = computed(() => {
   if (!biz.business) return ''
-  return kind.value === 'cardapio'
-    ? `Faça seu pedido em ${biz.business.name}: ${publicLink.value}`
-    : `Agende um horário com ${biz.business.name}: ${publicLink.value}`
+  if (kind.value === 'cardapio') return `Faça seu pedido em ${biz.business.name}: ${publicLink.value}`
+  if (kind.value === 'fila') return `Entre na fila da ${biz.business.name} pelo link: ${publicLink.value}`
+  return `Agende um horário com ${biz.business.name}: ${publicLink.value}`
 })
 const whatsappShareLink = computed(() => shareText.value &&
   `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText.value)}`)
