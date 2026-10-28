@@ -5,6 +5,7 @@ import { useBusiness } from '@/lib/business'
 import { money, formatTime, todayISO } from '@/lib/format'
 import { waLink } from '@/lib/whatsapp'
 import { alarmUrl } from '@/lib/alarm'
+import { APP_DOMAIN } from '@/config/brand'
 import Icon from '@/components/Icon.vue'
 
 // Fila por ordem de chegada: o cliente entra pela vitrine (ou o dono lança
@@ -67,25 +68,77 @@ const clock = (min) => new Date(now.value + min * 60000).toLocaleTimeString('pt-
 const waitText = (min) => (min <= 0 ? 'agora' : min < 60 ? `~${min} min` : `~${Math.floor(min / 60)}h${String(min % 60).padStart(2, '0')}`)
 
 // ---------------- Aberta / encerrada ----------------
-const closedToday = computed(() => biz.business.queue_closed_on === todayISO(tz.value))
+// Só pro dia de hoje o dono pode abrir/encerrar na hora e escolher até quando
+// aceita (migration 0024). No dia seguinte volta o horário padrão.
+const hasToday = computed(() => 'queue_today_mode' in biz.business)
+const hm = (t) => (t ? String(t).slice(0, 5) : '')
+function localNow() {
+  const d = new Date(now.value)
+  return {
+    wd: new Date(d.toLocaleString('en-US', { timeZone: tz.value })).getDay(),
+    t: d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: tz.value }),
+  }
+}
+const todayChoice = computed(() => (biz.business.queue_today === todayISO(tz.value) ? biz.business.queue_today_mode : null))
+const closedToday = computed(() => todayChoice.value === 'encerrada' || biz.business.queue_closed_on === todayISO(tz.value))
 const scheduleReason = computed(() => {
   const b = biz.business
-  const d = new Date()
-  const wd = Number(new Date(d.toLocaleString('en-US', { timeZone: tz.value })).getDay())
-  const t = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: tz.value })
-  if (!(b.queue_weekdays ?? []).includes(wd)) return 'Hoje não é dia de atendimento'
-  if (b.queue_open_time && t < b.queue_open_time.slice(0, 5)) return `A fila abre às ${b.queue_open_time.slice(0, 5)}`
-  if (b.queue_close_time && t >= b.queue_close_time.slice(0, 5)) return `A fila fechou às ${b.queue_close_time.slice(0, 5)}`
+  const { wd, t } = localNow()
+  if (!(b.queue_weekdays ?? []).includes(wd)) return 'Hoje não é dia de fila no horário padrão'
+  if (b.queue_open_time && t < hm(b.queue_open_time)) return `Pelo horário padrão, a fila abre às ${hm(b.queue_open_time)}`
+  if (b.queue_close_time && t >= hm(b.queue_close_time)) return `Pelo horário padrão, a fila fechou às ${hm(b.queue_close_time)}`
   return ''
 })
-const isOpen = computed(() => !closedToday.value && !scheduleReason.value)
+const until = computed(() => (todayChoice.value === 'aberta' ? hm(biz.business.queue_today_until) : hm(biz.business.queue_close_time)))
+const isOpen = computed(() => {
+  if (closedToday.value) return false
+  if (todayChoice.value === 'aberta') return !until.value || localNow().t < until.value
+  return !scheduleReason.value
+})
+const customUntil = ref('')
 
-async function setClosedToday(close) {
-  if (close && !confirm('Encerrar novos serviços por hoje? Quem já está na fila continua. Amanhã a fila abre sozinha.')) return
-  const value = close ? todayISO(tz.value) : null
-  const { error: err } = await supabase.from('businesses').update({ queue_closed_on: value }).eq('id', biz.business.id)
-  if (err) { error.value = err.message; return }
-  biz.business.queue_closed_on = value
+async function patchBusiness(patch) {
+  const { error: err } = await supabase.from('businesses').update(patch).eq('id', biz.business.id)
+  if (err) { error.value = err.message; return false }
+  Object.assign(biz.business, patch)
+  return true
+}
+async function setToday(mode, untilTime = null) {
+  if (mode === 'encerrada' && !confirm('Encerrar a entrada de novos clientes por hoje? Quem já está na fila continua. Amanhã a fila volta ao horário de sempre.')) return
+  const patch = hasToday.value
+    ? { queue_today: todayISO(tz.value), queue_today_mode: mode, queue_today_until: untilTime, queue_closed_on: null }
+    : { queue_closed_on: mode === 'encerrada' ? todayISO(tz.value) : null }
+  if (await patchBusiness(patch)) {
+    customUntil.value = ''
+    flash(mode === 'encerrada' ? 'Fila encerrada por hoje.' : untilTime ? `Fila aberta até ${untilTime}.` : 'Fila aberta até você encerrar.')
+  }
+}
+async function backToDefault() {
+  const patch = hasToday.value
+    ? { queue_today: null, queue_today_mode: null, queue_today_until: null, queue_closed_on: null }
+    : { queue_closed_on: null }
+  if (await patchBusiness(patch)) flash('Hoje vale o horário padrão da fila.')
+}
+
+// ---------------- "Me avise quando abrir" ----------------
+const notifyList = ref([])
+async function loadNotify() {
+  if (!hasToday.value) return
+  const { data } = await supabase.from('queue_notify').select('*')
+    .eq('business_id', biz.business.id).is('notified_at', null).order('created_at')
+  notifyList.value = data ?? []
+}
+function notifyLink(n) {
+  return waLink(n.phone, `Oi ${n.name}! A fila da ${biz.business.name} está aberta. Entre pelo link e garanta sua vez: https://${APP_DOMAIN}/${biz.business.slug}`)
+}
+async function markNotified(n) {
+  await supabase.from('queue_notify').update({ notified_at: new Date().toISOString() }).eq('id', n.id)
+  notifyList.value = notifyList.value.filter((x) => x.id !== n.id)
+}
+async function removeNotify(n) {
+  if (!confirm(`Tirar ${n.name} da lista de aviso?`)) return
+  await supabase.from('queue_notify').delete().eq('id', n.id)
+  notifyList.value = notifyList.value.filter((x) => x.id !== n.id)
 }
 
 // ---------------- Configuração ----------------
@@ -183,6 +236,7 @@ async function load() {
     entries.value = unwrap(await supabase.from('queue_entries').select('*')
       .eq('business_id', biz.business.id).eq('service_day', day.value).order('number'))
     if (isToday.value) handleNew(entries.value)
+    loadNotify()
   } catch (e) {
     error.value = e.message
   }
@@ -290,17 +344,57 @@ function changeDay() { seen = null; load() }
   <template v-else>
     <!-- Aberta / encerrada -->
     <div class="card q-status" :class="isOpen ? 'open' : 'closed'">
-      <div class="q-status-text">
-        <span class="q-dot" />
-        <div>
-          <strong>{{ isOpen ? 'Fila aberta: aceitando novos clientes' : 'Novos serviços encerrados' }}</strong>
-          <small v-if="closedToday">Você encerrou por hoje. Amanhã a fila abre sozinha.</small>
-          <small v-else-if="scheduleReason">{{ scheduleReason }}.</small>
-          <small v-else>Próximo a entrar começa {{ waitText(estimates.next) === 'agora' ? 'agora' : `por volta de ${clock(estimates.next)}` }}.</small>
+      <div class="q-status-row">
+        <div class="q-status-text">
+          <span class="q-dot" />
+          <div>
+            <strong>{{ isOpen ? 'Fila aberta: aceitando novos clientes' : 'Fila fechada para novos clientes' }}</strong>
+            <small v-if="isOpen">
+              {{ until ? `Aceitando até ${until}` : 'Aceitando até você encerrar' }} ·
+              próximo começa {{ estimates.next <= 0 ? 'agora' : `por volta de ${clock(estimates.next)}` }}
+            </small>
+            <small v-else-if="closedToday">Você encerrou por hoje. Amanhã a fila volta ao horário de sempre.</small>
+            <small v-else-if="todayChoice === 'aberta'">Fechou às {{ until }}, como você escolheu.</small>
+            <small v-else>{{ scheduleReason }}.</small>
+          </div>
+        </div>
+        <button v-if="isOpen" class="btn danger" @click="setToday('encerrada')">Encerrar agora</button>
+        <button v-else class="btn" @click="setToday('aberta', null)">Abrir agora</button>
+      </div>
+      <div v-if="hasToday" class="q-until">
+        <span class="q-until-label">Hoje, aceitar clientes até:</span>
+        <div class="chips">
+          <button type="button" class="chip" :class="{ selected: !todayChoice && !closedToday }" @click="backToDefault">
+            Horário padrão{{ biz.business.queue_close_time ? ` (${hm(biz.business.queue_close_time)})` : '' }}
+          </button>
+          <button type="button" class="chip" :class="{ selected: todayChoice === 'aberta' && !biz.business.queue_today_until }" @click="setToday('aberta', null)">
+            Até eu encerrar
+          </button>
+          <span class="q-until-pick" :class="{ selected: todayChoice === 'aberta' && biz.business.queue_today_until }">
+            <input v-model="customUntil" type="time" aria-label="Aceitar até" />
+            <button type="button" class="btn small secondary" :disabled="!customUntil" @click="setToday('aberta', customUntil)">
+              {{ todayChoice === 'aberta' && biz.business.queue_today_until && !customUntil ? `Até ${until}` : 'Usar este horário' }}
+            </button>
+          </span>
         </div>
       </div>
-      <button v-if="!closedToday" class="btn danger" @click="setClosedToday(true)">Encerrar novos serviços</button>
-      <button v-else class="btn" @click="setClosedToday(false)">Reabrir a fila</button>
+    </div>
+
+    <!-- Quem pediu pra ser avisado -->
+    <div v-if="notifyList.length" class="card q-notify">
+      <div class="spread">
+        <h3 style="margin: 0">🔔 {{ notifyList.length }} {{ notifyList.length === 1 ? 'cliente quer' : 'clientes querem' }} ser avisado{{ notifyList.length === 1 ? '' : 's' }} quando abrir</h3>
+      </div>
+      <p class="muted" style="margin: 4px 0 10px">Toque em "Avisar" pra mandar o link da fila no WhatsApp de cada um.</p>
+      <div v-for="n in notifyList" :key="n.id" class="q-notify-row">
+        <span><strong>{{ n.name }}</strong> <small class="muted">{{ n.phone }} · pediu às {{ formatTime(n.created_at, tz) }}</small></span>
+        <span class="chips">
+          <a class="btn small" :href="notifyLink(n)" target="_blank" rel="noopener" @click="markNotified(n)">
+            <Icon name="whatsapp" style="width: 15px; height: 15px" />Avisar
+          </a>
+          <button type="button" class="btn small secondary" @click="removeNotify(n)">Remover</button>
+        </span>
+      </div>
     </div>
 
     <div class="q-stats">
@@ -441,7 +535,15 @@ function changeDay() { seen = null; load() }
 </template>
 
 <style scoped>
-.q-status { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
+.q-status { margin-bottom: 14px; display: grid; gap: 14px; }
+.q-status-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+.q-until { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border); }
+.q-until-label { font-size: 0.85rem; font-weight: 600; color: var(--silver); }
+.q-until-pick { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 3px 3px; border-radius: 999px; border: 1px solid var(--border); }
+.q-until-pick.selected { border-color: var(--brand); }
+.q-until-pick input { width: auto; padding: 5px 8px; border: 0; background: transparent; }
+.q-notify { margin-bottom: 14px; border-color: var(--brand); }
+.q-notify-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 8px 0; border-top: 1px solid var(--border); }
 .q-status-text { display: flex; gap: 12px; align-items: flex-start; }
 .q-status-text strong { display: block; font-size: 1.02rem; }
 .q-status-text small { display: block; color: var(--muted); margin-top: 2px; }

@@ -77,7 +77,7 @@ onBeforeUnmount(() => io?.disconnect())
       <div class="biz-cover">
         <div v-if="business.live" class="biz-live-pill" :class="{ closed: !storeOpen }">
           <span class="dot" />
-          <span>{{ !storeOpen ? (isQueue ? 'Fila encerrada' : 'Fechado agora') : isMenu ? 'Pedidos online' : isQueue ? 'Fila online' : 'Agendando online' }}</span>
+          <span>{{ !storeOpen ? (isQueue ? 'Fila fechada agora' : 'Fechado agora') : isMenu ? 'Pedidos online' : isQueue ? 'Fila online' : 'Agendando online' }}</span>
         </div>
         <div class="container biz-cover-inner">
           <!-- espaço reservado — a logo "flutua" sobre a capa -->
