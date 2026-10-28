@@ -149,7 +149,7 @@ function startResendCooldown() {
           Cadastro gratuito · leva 2 minutos
         </div>
         <h1 class="signup-title">
-          Coloque sua vitrine<br />
+          Coloque sua vitrine <br />
           <span class="gradient-text">no ar hoje mesmo.</span>
         </h1>
         <p class="signup-sub muted">

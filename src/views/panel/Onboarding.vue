@@ -247,7 +247,7 @@ async function skipNow() {
           Vamos montar sua agenda em 2 minutos
         </div>
         <h1 class="onb-title">
-          Já pré-preenchemos<br />
+          Já pré-preenchemos <br />
           <span class="gradient-text">o essencial pra você.</span>
         </h1>
         <p class="onb-sub muted">

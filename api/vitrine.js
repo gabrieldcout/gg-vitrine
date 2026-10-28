@@ -25,9 +25,11 @@ export function withBusiness(html, b, origin) {
   const isMenu = b.kind === 'cardapio'
   // Mesmos segmentos "não comida" de catalogWord() em src/config/brand.js.
   const word = ['Gás e água', 'Loja e catálogo', 'Outro (pedidos)'].includes(b.category) ? 'catálogo' : 'cardápio'
-  const title = `${b.name} · ${isMenu ? `Visite nosso ${word}` : 'Agende seu horário'}`
+  const isQueue = b.kind === 'fila'
+  const title = `${b.name} · ${isMenu ? `Visite nosso ${word}` : isQueue ? 'Entre na fila online' : 'Agende seu horário'}`
   const description = b.description?.trim() ||
-    (isMenu ? `Veja o cardápio e faça seu pedido online em ${b.name}.` : `Agende seu horário online em ${b.name}.`)
+    (isMenu ? `Veja o cardápio e faça seu pedido online em ${b.name}.`
+      : isQueue ? `Entre na fila online de ${b.name} e acompanhe sua vez pelo celular.` : `Agende seu horário online em ${b.name}.`)
   const image = b.logo_url ? previewImage(b.logo_url, origin) : `${origin}/logo.png`
   let out = html.replace(/<title>[^<]*<\/title>/, `<title>${esc(title)}</title>`)
   out = setMeta(out, 'name', 'description', description)

@@ -128,7 +128,7 @@ async function forgot() {
             Bem-vindo de volta
           </div>
           <h1 class="pitch-title">
-            Sua vitrine está<br />
+            Sua vitrine está <br />
             <span class="gradient-text">esperando você.</span>
           </h1>
           <p class="pitch-sub">
