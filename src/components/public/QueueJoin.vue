@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { supabase } from '@/lib/supabase'
 import { money, todayISO } from '@/lib/format'
 import { waLink } from '@/lib/whatsapp'
+import { alarmUrl } from '@/lib/alarm'
 import Icon from '@/components/Icon.vue'
 
 // Vitrine em modo fila: o cliente escolhe o serviço, entra na fila do dia e
@@ -137,8 +138,41 @@ async function loadTicket() {
   if (!data || (data.service_day !== todayISO(tz.value) && ['aguardando', 'atendendo'].includes(data.status))) {
     write(KEY.value, null); ticket.value = null; return
   }
+  const before = ticket.value?.id === data.id ? ticket.value.status : null
   ticket.value = data
+  if (before && before !== data.status) alertChange(data)
 }
+
+// Aviso neste celular: com a página aberta, toca e vibra quando chega a vez e
+// quando fica pronto. O navegador só libera som/notificação depois de um toque.
+const alertOn = ref(false)
+let player
+async function enableAlerts() {
+  try {
+    player ??= new Audio(alarmUrl())
+    player.muted = true
+    await player.play()
+    player.pause()
+    player.currentTime = 0
+    player.muted = false
+  } catch { /* sem som */ }
+  if ('Notification' in window && Notification.permission === 'default') {
+    try { await Notification.requestPermission() } catch { /* sem notificação */ }
+  }
+  alertOn.value = true
+}
+function alertChange(t) {
+  const text = t.status === 'pronto' ? 'Seu carro está pronto! Pode vir buscar.'
+    : t.status === 'atendendo' ? 'Chegou sua vez! Seu atendimento começou.' : ''
+  if (!text) return
+  try { navigator.vibrate?.([300, 150, 300, 150, 600]) } catch { /* sem vibração */ }
+  if (player) { player.currentTime = 0; player.play().catch(() => {}) }
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try { new Notification(`${props.business.name} · senha #${t.number}`, { body: text, tag: t.id }) } catch { /* sem notificação */ }
+  }
+}
+const mapsLink = computed(() => props.business.address
+  ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(props.business.address)}` : null)
 function refresh() { loadQueue(); loadTicket() }
 
 function pick(s) {
@@ -222,8 +256,10 @@ onUnmounted(() => clearInterval(timer))
         <p class="muted" style="margin: 0">Avisamos quando estiver pronto.</p>
       </template>
       <template v-else-if="ticket.status === 'pronto'">
-        <h2>Pronto!</h2>
-        <p class="muted" style="margin: 0">Seu serviço foi finalizado. Obrigado pela preferência!</p>
+        <div class="qj-ready-big">✅</div>
+        <h2>Seu carro está pronto!</h2>
+        <p class="qj-big">Pode vir buscar 🚗✨</p>
+        <p v-if="business.address" class="muted" style="margin: 0">{{ business.address }}</p>
       </template>
       <template v-else>
         <h2>Senha cancelada</h2>
@@ -236,7 +272,16 @@ onUnmounted(() => clearInterval(timer))
         <div class="summary-row total"><span class="label">Valor</span><span class="value">{{ money(ticket.price) }}</span></div>
       </div>
 
+      <button v-if="activeTicket && !alertOn" type="button" class="qj-alert-btn" @click="enableAlerts">
+        <Icon name="bell" />
+        <span><strong>Avise-me neste celular</strong><small>Toca e vibra quando chegar sua vez e quando o carro ficar pronto. Deixe esta página aberta.</small></span>
+      </button>
+      <p v-else-if="activeTicket" class="qj-alert-on"><Icon name="check" />Aviso ligado: deixe esta página aberta.</p>
+
       <div class="done-actions">
+        <a v-if="ticket.status === 'pronto' && mapsLink" :href="mapsLink" target="_blank" rel="noopener" class="btn">
+          <Icon name="map" />Como chegar
+        </a>
         <a v-if="ticketWa && ticket.status !== 'pronto'" :href="ticketWa" target="_blank" rel="noopener" class="btn">
           <Icon name="whatsapp" />Falar com a loja no WhatsApp
         </a>
@@ -380,4 +425,12 @@ onUnmounted(() => clearInterval(timer))
 .qj-form { display: grid; gap: 4px; }
 .qj-submit { width: 100%; margin-top: 8px; }
 .qj-static { cursor: default; }
+.qj-ready-big { font-size: 2.6rem; line-height: 1; margin: 4px 0 6px; }
+.qj-alert-btn { display: flex; gap: 12px; align-items: flex-start; width: 100%; text-align: left; margin-top: 14px; padding: 12px 14px; border-radius: 14px;
+  cursor: pointer; font: inherit; color: var(--text); background: var(--surface); border: 1px dashed var(--brand); }
+.qj-alert-btn svg { width: 20px; height: 20px; color: var(--brand); flex-shrink: 0; margin-top: 2px; }
+.qj-alert-btn strong { display: block; }
+.qj-alert-btn small { display: block; color: var(--muted); margin-top: 2px; }
+.qj-alert-on { display: flex; gap: 8px; align-items: center; justify-content: center; margin: 14px 0 0; font-size: 0.88rem; color: #22c55e; }
+.qj-alert-on svg { width: 16px; height: 16px; }
 </style>

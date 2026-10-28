@@ -197,6 +197,28 @@ async function saveAdd() {
 }
 
 // ---------------- Ações ----------------
+// "Pronto": já abre o WhatsApp do cliente com a mensagem escrita (o dono só
+// aperta enviar). Abre antes de salvar, ainda dentro do toque, senão o
+// navegador bloqueia a janela.
+// Preferências deste aparelho.
+const pref = (key, def) => { try { const v = localStorage.getItem(key); return v === null ? def : v === '1' } catch { return def } }
+const waOnReady = ref(pref('gg-fila-wa-pronto', true))
+function toggleWaOnReady() {
+  waOnReady.value = !waOnReady.value
+  try { localStorage.setItem('gg-fila-wa-pronto', waOnReady.value ? '1' : '0') } catch { /* sem armazenamento local */ }
+}
+function readyMessage(e) {
+  const what = e.vehicle ? `seu ${e.vehicle}` : 'seu carro'
+  return `Olá ${e.customer_name}! ✅ ${what.charAt(0).toUpperCase() + what.slice(1)} está pronto, pode vir buscar! ` +
+    `(${e.service_name} · senha #${e.number} · ${money(e.price)})` +
+    (biz.business.address ? `\n📍 ${biz.business.address}` : '') + `\nObrigado pela preferência, ${biz.business.name}!`
+}
+function markReady(e) {
+  const link = waOnReady.value && e.phone ? waLink(e.phone, readyMessage(e)) : null
+  if (link) window.open(link, '_blank', 'noopener')
+  setStatus(e, 'pronto')
+}
+
 async function setStatus(e, status) {
   if (status === 'cancelado' && !confirm(`Tem certeza que deseja tirar #${e.number} (${e.customer_name}) da fila?`)) return
   const patch = { status, ...(status === 'cancelado' ? { canceled_by: 'loja' } : {}) }
@@ -219,7 +241,7 @@ function customerLink(e) {
     aguardando: `Olá ${e.customer_name}! Você está na fila da ${biz.business.name} com a senha #${e.number}.` +
       (est ? ` Previsão de atendimento: ${est.wait <= 0 ? 'agora' : `por volta de ${clock(est.wait)}`}.` : ''),
     atendendo: `Olá ${e.customer_name}! Seu ${e.service_name.toLowerCase()} (senha #${e.number}) já começou.`,
-    pronto: `Olá ${e.customer_name}! Seu serviço (senha #${e.number}) está pronto. Pode vir buscar!`,
+    pronto: readyMessage(e),
   }[e.status] ?? `Olá ${e.customer_name}!`
   return waLink(e.phone, msgText)
 }
@@ -247,7 +269,6 @@ async function loadServices() {
 }
 
 // ---------------- Cliente novo: som e notificação ----------------
-const pref = (key, def) => { try { const v = localStorage.getItem(key); return v === null ? def : v === '1' } catch { return def } }
 const soundOn = ref(pref('gg-fila-som', true))
 const audioReady = ref(false)
 const hasNew = ref(false)
@@ -476,6 +497,10 @@ function changeDay() { seen = null; load() }
         <Icon name="bell" style="width: 15px; height: 15px" />Som desativado: toque aqui pra ativar
       </button>
       <button v-else-if="soundOn" type="button" class="link-btn" @click="testSound">Testar som</button>
+      <label class="q-check" style="flex-basis: 100%">
+        <input type="checkbox" :checked="waOnReady" @change="toggleWaOnReady" />
+        <span><strong>Ao marcar pronto, abrir o WhatsApp do cliente com a mensagem "pode vir buscar"</strong></span>
+      </label>
     </div>
 
     <div v-if="msg" class="success">{{ msg }}</div>
@@ -525,7 +550,9 @@ function changeDay() { seen = null; load() }
             <Icon name="whatsapp" style="width: 15px; height: 15px" />Avisar cliente
           </a>
           <button v-if="e.status === 'aguardando'" class="btn small" @click="setStatus(e, 'atendendo')">Começar atendimento</button>
-          <button v-if="e.status === 'atendendo'" class="btn small" @click="setStatus(e, 'pronto')">Marcar como pronto</button>
+          <button v-if="e.status === 'atendendo'" class="btn small" @click="markReady(e)">
+            <Icon v-if="waOnReady && e.phone" name="whatsapp" style="width: 15px; height: 15px" />Marcar como pronto{{ waOnReady && e.phone ? ' e avisar' : '' }}
+          </button>
           <button v-if="e.status === 'atendendo'" class="btn small secondary" @click="setStatus(e, 'aguardando')">Voltar pra fila</button>
           <button v-if="['aguardando', 'atendendo'].includes(e.status)" class="btn small danger" @click="setStatus(e, 'cancelado')">Tirar da fila</button>
         </div>
