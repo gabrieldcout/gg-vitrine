@@ -176,7 +176,7 @@ async function saveSettings() {
 const showAdd = ref(false)
 const add = ref({})
 function openAdd() {
-  add.value = { service_id: services.value[0]?.id ?? '', customer_name: '', phone: '', vehicle: '', notes: '', start: false }
+  add.value = { service_id: services.value[0]?.id ?? '', customer_name: '', phone: '', vehicle: 'Carro', notes: '', start: false }
   showAdd.value = true
 }
 async function saveAdd() {
@@ -185,7 +185,7 @@ async function saveAdd() {
   const { data, error: err } = await supabase.from('queue_entries').insert({
     business_id: biz.business.id, service_id: s.id, service_name: s.name, price: s.price, duration_min: s.duration_min,
     customer_name: add.value.customer_name.trim() || 'Cliente do balcão', phone: add.value.phone.trim(),
-    vehicle: add.value.vehicle.trim() || null, notes: add.value.notes.trim() || null, source: 'balcao',
+    vehicle: add.value.vehicle || null, notes: add.value.notes.trim() || null, source: 'balcao',
     status: add.value.start ? 'atendendo' : 'aguardando',
   }).select('id, number').single()
   if (err) { error.value = err.message; return }
@@ -208,9 +208,7 @@ function toggleWaOnReady() {
   try { localStorage.setItem('gg-fila-wa-pronto', waOnReady.value ? '1' : '0') } catch { /* sem armazenamento local */ }
 }
 function readyMessage(e) {
-  const what = e.vehicle ? `seu ${e.vehicle}` : 'seu carro'
-  return `Olá ${e.customer_name}! ✅ ${what.charAt(0).toUpperCase() + what.slice(1)} está pronto, pode vir buscar! ` +
-    `(${e.service_name} · senha #${e.number} · ${money(e.price)})` +
+  return `Olá ${e.customer_name}! ✅ Seu veículo está pronto, pode vir buscar!` +
     (biz.business.address ? `\n📍 ${biz.business.address}` : '') + `\nObrigado pela preferência, ${biz.business.name}!`
 }
 function markReady(e) {
@@ -477,7 +475,9 @@ function changeDay() { seen = null; load() }
           <label class="q-field"><span>WhatsApp</span><input v-model="add.phone" inputmode="tel" maxlength="30" placeholder="Opcional" /></label>
         </div>
         <div class="q-row">
-          <label class="q-field"><span>Veículo</span><input v-model="add.vehicle" maxlength="80" placeholder="Modelo, cor ou placa (opcional)" /></label>
+          <label class="q-field"><span>Veículo</span>
+            <select v-model="add.vehicle"><option>Carro</option><option>Moto</option></select>
+          </label>
           <label class="q-field"><span>Observação</span><input v-model="add.notes" maxlength="500" placeholder="Opcional" /></label>
         </div>
         <label class="q-check"><input v-model="add.start" type="checkbox" /> Já começar o atendimento agora</label>

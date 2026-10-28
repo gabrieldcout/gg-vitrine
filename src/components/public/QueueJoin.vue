@@ -18,7 +18,8 @@ const WEEKDAYS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', '
 const queue = ref(null)
 const ticket = ref(null)
 const service = ref(null)
-const form = ref({ name: '', phone: '', vehicle: '', notes: '' })
+const form = ref({ name: '', phone: '', vehicle: '' })
+const VEHICLES = ['Carro', 'Moto']
 const sending = ref(false)
 const error = ref('')
 const now = ref(Date.now())
@@ -162,7 +163,7 @@ async function enableAlerts() {
   alertOn.value = true
 }
 function alertChange(t) {
-  const text = t.status === 'pronto' ? 'Seu carro está pronto! Pode vir buscar.'
+  const text = t.status === 'pronto' ? 'Seu veículo está pronto! Pode vir buscar.'
     : t.status === 'atendendo' ? 'Chegou sua vez! Seu atendimento começou.' : ''
   if (!text) return
   try { navigator.vibrate?.([300, 150, 300, 150, 600]) } catch { /* sem vibração */ }
@@ -183,6 +184,7 @@ function pick(s) {
 async function join() {
   error.value = ''
   if (!service.value) { error.value = 'Escolha o serviço.'; return }
+  if (!VEHICLES.includes(form.value.vehicle)) { error.value = 'Escolha se é carro ou moto.'; return }
   if (!form.value.name.trim() || form.value.phone.replace(/\D/g, '').length < 10) {
     error.value = 'Informe seu nome e WhatsApp com DDD.'
     return
@@ -191,12 +193,12 @@ async function join() {
   const { data, error: err } = await supabase.rpc('join_queue', {
     p_business: props.business.id, p_service: service.value.id,
     p_name: form.value.name.trim(), p_phone: form.value.phone.trim(),
-    p_vehicle: form.value.vehicle.trim() || null, p_notes: form.value.notes.trim() || null,
+    p_vehicle: form.value.vehicle, p_notes: null,
   })
   sending.value = false
   if (err) { error.value = err.message; loadQueue(); return }
   write(KEY.value, { id: data.id })
-  write('gg-fila-cliente', { name: form.value.name.trim(), phone: form.value.phone.trim(), vehicle: form.value.vehicle.trim() })
+  write('gg-fila-cliente', { name: form.value.name.trim(), phone: form.value.phone.trim(), vehicle: form.value.vehicle })
   service.value = null
   await loadTicket()
   loadQueue()
@@ -216,7 +218,7 @@ function newTicket() {
 let timer
 onMounted(() => {
   const saved = read('gg-fila-cliente')
-  if (saved) Object.assign(form.value, { name: saved.name ?? '', phone: saved.phone ?? '', vehicle: saved.vehicle ?? '' })
+  if (saved) Object.assign(form.value, { name: saved.name ?? '', phone: saved.phone ?? '', vehicle: VEHICLES.includes(saved.vehicle) ? saved.vehicle : '' })
   if (saved) Object.assign(notifyForm.value, { name: saved.name ?? '', phone: saved.phone ?? '' })
   // Já pediu aviso nas últimas 20h: não pede de novo.
   const asked = read(NOTIFY_KEY.value)
@@ -248,7 +250,7 @@ onUnmounted(() => clearInterval(timer))
           Previsão de atendimento: <strong>{{ ticket.wait_min <= 0 ? 'agora' : `por volta de ${clock(ticket.wait_min)}` }}</strong>
           <template v-if="ticket.wait_min > 0"> ({{ waitText(ticket.wait_min) }})</template>
         </p>
-        <p v-if="ticketReadyAt" class="qj-ready">Seu carro fica pronto por volta de <strong>{{ ticketReadyAt }}</strong></p>
+        <p v-if="ticketReadyAt" class="qj-ready">Seu veículo fica pronto por volta de <strong>{{ ticketReadyAt }}</strong></p>
         <small class="muted">Não precisa ficar esperando: acompanhe sua vez por esta página. A previsão é uma estimativa e atualiza sozinha.</small>
       </template>
       <template v-else-if="ticket.status === 'atendendo'">
@@ -257,7 +259,7 @@ onUnmounted(() => clearInterval(timer))
       </template>
       <template v-else-if="ticket.status === 'pronto'">
         <div class="qj-ready-big">✅</div>
-        <h2>Seu carro está pronto!</h2>
+        <h2>Seu veículo está pronto!</h2>
         <p class="qj-big">Pode vir buscar 🚗✨</p>
         <p v-if="business.address" class="muted" style="margin: 0">{{ business.address }}</p>
       </template>
@@ -274,7 +276,7 @@ onUnmounted(() => clearInterval(timer))
 
       <button v-if="activeTicket && !alertOn" type="button" class="qj-alert-btn" @click="enableAlerts">
         <Icon name="bell" />
-        <span><strong>Avise-me neste celular</strong><small>Toca e vibra quando chegar sua vez e quando o carro ficar pronto. Deixe esta página aberta.</small></span>
+        <span><strong>Avise-me neste celular</strong><small>Toca e vibra quando chegar sua vez e quando o veículo ficar pronto. Deixe esta página aberta.</small></span>
       </button>
       <p v-else-if="activeTicket" class="qj-alert-on"><Icon name="check" />Aviso ligado: deixe esta página aberta.</p>
 
@@ -360,13 +362,17 @@ onUnmounted(() => clearInterval(timer))
           <div class="step-head">
             <span class="step-chip"><span class="n">2</span>Seus dados</span>
             <h3>Entrar na fila</h3>
-            <p v-if="readyAt">Se entrar agora, seu carro fica pronto por volta de <strong>{{ readyAt }}</strong>.</p>
+            <p v-if="readyAt">Se entrar agora, seu veículo fica pronto por volta de <strong>{{ readyAt }}</strong>.</p>
           </div>
           <form class="qj-form" @submit.prevent="join">
+            <div class="qj-vehicle" role="radiogroup" aria-label="Carro ou moto">
+              <button v-for="v in VEHICLES" :key="v" type="button" class="qj-vehicle-opt" :class="{ on: form.vehicle === v }"
+                      role="radio" :aria-checked="form.vehicle === v" @click="form.vehicle = v; error = ''">
+                <span class="qj-vehicle-ico">{{ v === 'Carro' ? '🚗' : '🏍️' }}</span>{{ v }}
+              </button>
+            </div>
             <div class="ff"><input v-model="form.name" required maxlength="80" placeholder=" " /><label>Seu nome</label></div>
             <div class="ff"><input v-model="form.phone" type="tel" required maxlength="30" placeholder=" " /><label>WhatsApp com DDD</label></div>
-            <div class="ff"><input v-model="form.vehicle" maxlength="80" placeholder=" " /><label>Veículo <small>(modelo e cor, opcional)</small></label></div>
-            <div class="ff"><input v-model="form.notes" maxlength="500" placeholder=" " /><label>Observação <small>(opcional)</small></label></div>
             <div v-if="error" class="error">{{ error }}</div>
             <button class="btn qj-submit" :disabled="sending">
               {{ sending ? 'Entrando…' : `Entrar na fila · ${money(service.price)}` }}
@@ -425,6 +431,11 @@ onUnmounted(() => clearInterval(timer))
 .qj-form { display: grid; gap: 4px; }
 .qj-submit { width: 100%; margin-top: 8px; }
 .qj-static { cursor: default; }
+.qj-vehicle { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 4px 0 8px; }
+.qj-vehicle-opt { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px; border-radius: 14px; cursor: pointer;
+  font: inherit; font-weight: 700; color: var(--text); background: var(--surface); border: 1px solid var(--border); }
+.qj-vehicle-opt.on { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand); }
+.qj-vehicle-ico { font-size: 1.3rem; }
 .qj-ready-big { font-size: 2.6rem; line-height: 1; margin: 4px 0 6px; }
 .qj-alert-btn { display: flex; gap: 12px; align-items: flex-start; width: 100%; text-align: left; margin-top: 14px; padding: 12px 14px; border-radius: 14px;
   cursor: pointer; font: inherit; color: var(--text); background: var(--surface); border: 1px dashed var(--brand); }
