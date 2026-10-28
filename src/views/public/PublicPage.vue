@@ -31,7 +31,7 @@ const queueOpen = ref(true)   // vem do QueueJoin, que consulta a fila
 const storeOpen = computed(() => (isQueue.value ? queueOpen.value : !isMenu.value ||
   (business.value?.store?.accepting_orders !== false && business.value?.store?.open_now !== false)))
 // O cardápio tem a própria barra fixa (sacola), então o botão "Agendar" fixo é só da agenda.
-const showSticky = computed(() => business.value?.live && !isMenu.value)
+const showSticky = computed(() => business.value?.live && !isMenu.value && (!isQueue.value || queueOpen.value))
 
 // Scroll suave pro bloco de agendamento (sticky CTA do mobile).
 function scrollToBooking() {

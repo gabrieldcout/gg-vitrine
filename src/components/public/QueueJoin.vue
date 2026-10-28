@@ -224,7 +224,27 @@ onUnmounted(() => clearInterval(timer))
           </form>
         </div>
       </template>
-      <div v-else-if="error" class="error">{{ error }}</div>
+      <!-- Fila encerrada: mostra os serviços mesmo assim, pra página não ficar vazia -->
+      <div v-else-if="queue && business.services.length" class="card">
+        <div class="step-head">
+          <h3>Nossos serviços</h3>
+          <p>Quando a fila abrir, é só escolher e entrar.</p>
+        </div>
+        <div class="svc-grid">
+          <div v-for="s in business.services" :key="s.id" class="svc-card qj-static">
+            <div class="svc-icon"><Icon name="sparkles" /></div>
+            <div class="svc-body">
+              <span class="name">{{ s.name }}</span>
+              <span v-if="s.description" class="desc">{{ s.description }}</span>
+            </div>
+            <div class="svc-meta">
+              <span class="svc-price">{{ money(s.price) }}</span>
+              <span class="svc-duration"><Icon name="clock" />{{ s.duration_min }} min</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div v-if="error && !queue?.open" class="error">{{ error }}</div>
     </template>
   </template>
 </template>
@@ -244,4 +264,5 @@ onUnmounted(() => clearInterval(timer))
 .qj-status.closed .qj-dot { background: #ef4444; box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.2); }
 .qj-form { display: grid; gap: 4px; }
 .qj-submit { width: 100%; margin-top: 8px; }
+.qj-static { cursor: default; }
 </style>
