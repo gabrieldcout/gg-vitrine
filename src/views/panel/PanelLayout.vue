@@ -68,7 +68,7 @@ const showShareBar = computed(() =>
 // só distribui em "seções" pra dar hierarquia na sidebar. A ordem dentro
 // de cada grupo segue o PANEL_NAV original.
 const NAV_GROUPS = [
-  { title: 'Agenda', match: ['/painel', '/painel/servicos', '/painel/profissionais', '/painel/horarios', '/painel/clientes', '/painel/bloqueios'] },
+  { title: 'Agenda', match: ['/painel', '/painel/fila', '/painel/servicos', '/painel/profissionais', '/painel/horarios', '/painel/clientes', '/painel/bloqueios'] },
   { title: 'Loja', match: ['/painel/pedidos', '/painel/cardapio', '/painel/funcionamento'] },
   { title: 'Divulgar', match: ['/painel/lembretes', '/painel/galeria', '/painel/avaliacoes', '/painel/fidelidade', '/painel/cupons', '/painel/divulgar'] },
   { title: 'Conta', match: ['/painel/tutorial', '/painel/financeiro', '/painel/perfil', '/painel/assinatura'] },
@@ -82,7 +82,8 @@ const nav = computed(() => navFor(kind.value).map((item) => ({
 })))
 
 const groupedNav = computed(() => NAV_GROUPS
-  .map((g) => ({ ...g, items: nav.value.filter((i) => g.match.includes(i.to)) }))
+  .map((g) => ({ ...g, title: g.title === 'Agenda' && kind.value === 'fila' ? 'Atendimento' : g.title,
+    items: nav.value.filter((i) => g.match.includes(i.to)) }))
   .filter((g) => g.items.length))
 
 // Pill de status do estabelecimento na sidebar (plano ativo, aprovado, atrasado etc).

@@ -578,7 +578,8 @@ function changeDay() { seen = null; load() }
 .q-status.closed .q-dot { background: #ef4444; box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.2); }
 .q-status.closed { border-color: rgba(239, 68, 68, 0.45); }
 .q-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
-.q-stats .stat { padding: 12px 16px; }
+.q-stats .stat { padding: 12px 16px; margin: 0; }
+.q-list .card { margin: 0; }
 .q-stats .value { font-size: 1.4rem; }
 .q-sold { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .eye-btn { width: 32px; height: 32px; border-radius: 999px; display: grid; place-items: center; flex-shrink: 0;
