@@ -121,15 +121,21 @@ async function createAppointment() {
   error.value = ''
   try {
     const service = services.value.find((s) => s.id === form.value.service_id)
+    const starts = zonedToUtc(date.value, form.value.time, tz.value)
+    const duration = Number(form.value.duration_min) || service.duration_min
+    const ends = new Date(starts.getTime() + duration * 60000)
+    // Mostra quem está no caminho (com botão de remarcar) em vez do erro seco.
+    conflicts.value = unwrap(await supabase.from('appointments')
+      .select('*, customer:customers(name, phone), service:services(name), professional:professionals(name)')
+      .eq('professional_id', form.value.professional_id).neq('status', 'canceled')
+      .lt('starts_at', ends.toISOString()).gt('ends_at', starts.toISOString()).order('starts_at'))
+    if (conflicts.value.length) return
     let customerId = form.value.customer_id
     if (!customerId) {
       customerId = unwrap(await supabase.from('customers')
         .insert({ business_id: biz.business.id, name: form.value.new_name, phone: form.value.new_phone || null })
         .select('id').single()).id
     }
-    const starts = zonedToUtc(date.value, form.value.time, tz.value)
-    const duration = Number(form.value.duration_min) || service.duration_min
-    const ends = new Date(starts.getTime() + duration * 60000)
     const { error: err } = await supabase.from('appointments').insert({
       business_id: biz.business.id, customer_id: customerId, service_id: service.id,
       professional_id: form.value.professional_id, starts_at: starts.toISOString(), ends_at: ends.toISOString(),
@@ -147,6 +153,87 @@ async function createAppointment() {
     error.value = e.message
   }
 }
+
+const conflicts = ref([])
+watch(() => [form.value.time, form.value.duration_min, form.value.professional_id, date.value], () => { conflicts.value = [] })
+
+// Aviso depois de remarcar/pausar, com link opcional pro WhatsApp do cliente.
+const notice = ref(null)   // { text, wa }
+
+// ---------------- Remarcar (dono muda o horário do cliente) ----------------
+const moving = ref(null)   // agendamento sendo remarcado
+const moveForm = ref({ date: '', time: '' })
+
+function startMove(a) {
+  error.value = ''
+  notice.value = null
+  moving.value = a
+  moveForm.value = { date: date.value, time: formatTime(a.starts_at, tz.value) }
+  setTimeout(() => document.getElementById('move-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+}
+
+async function saveMove() {
+  error.value = ''
+  const a = moving.value
+  const starts = zonedToUtc(moveForm.value.date, moveForm.value.time, tz.value)
+  const ends = new Date(starts.getTime() + (new Date(a.ends_at) - new Date(a.starts_at)))
+  const { error: err } = await supabase.from('appointments')
+    .update({ starts_at: starts.toISOString(), ends_at: ends.toISOString() }).eq('id', a.id)
+  if (err) {
+    error.value = err.message.includes('appointments_no_overlap')
+      ? 'Esse novo horário também já está ocupado. Escolha outro.' : err.message
+    return
+  }
+  const when = formatDateTime(starts.toISOString(), tz.value)
+  notice.value = {
+    text: `${a.customer?.name} remarcado para ${when}.`,
+    wa: a.customer?.phone && waLink(a.customer.phone,
+      `Oi ${a.customer.name}! Aqui é de ${biz.business.name}. Precisei remarcar seu horário de ` +
+      `${a.service?.name}. Novo horário: *${when}*. Pode ser? Se não der, me fala que a gente acha outro.`),
+  }
+  conflicts.value = conflicts.value.filter((c) => c.id !== a.id)
+  moving.value = null
+  loadAppointments()
+}
+
+// ---------------- Pausar agendamentos (atalho de Folgas e bloqueios) ----------------
+const canPause = computed(() => biz.hasFeature('bloqueios') || biz.hasFeature('folgas'))
+const showPause = ref(false)
+const pauseForm = ref({ from: '11:00', to: '15:00', reason: '' })
+const pauses = ref([])
+
+async function loadPauses() {
+  if (!canPause.value) return
+  const from = zonedToUtc(date.value, '00:00', tz.value).toISOString()
+  const to = zonedToUtc(addDaysISO(date.value, 1), '00:00', tz.value).toISOString()
+  pauses.value = unwrap(await supabase.from('time_off').select('*')
+    .eq('business_id', biz.business.id).lt('starts_at', to).gt('ends_at', from).order('starts_at'))
+}
+onMounted(loadPauses)
+watch(date, loadPauses)
+
+async function addPause() {
+  error.value = ''
+  const f = pauseForm.value
+  if (f.to <= f.from) { error.value = 'O fim da pausa precisa ser depois do começo.'; return }
+  const { error: err } = await supabase.from('time_off').insert({
+    business_id: biz.business.id, kind: 'bloqueio', reason: f.reason || null, professional_id: null,
+    starts_at: zonedToUtc(date.value, f.from, tz.value).toISOString(),
+    ends_at: zonedToUtc(date.value, f.to, tz.value).toISOString(),
+  })
+  if (err) { error.value = err.message; return }
+  notice.value = { text: `Agendamentos pausados das ${f.from} às ${f.to}. A vitrine não oferece esse período.` }
+  showPause.value = false
+  pauseForm.value = { from: '11:00', to: '15:00', reason: '' }
+  loadPauses()
+}
+
+async function removePause(p) {
+  if (!confirm('Liberar esse período de novo na vitrine?')) return
+  const { error: err } = await supabase.from('time_off').delete().eq('id', p.id)
+  if (err) { error.value = err.message; return }
+  loadPauses()
+}
 </script>
 
 <template>
@@ -160,6 +247,10 @@ async function createAppointment() {
               @click="printDay(visible, biz.business, dayLabel, dayTotal)">
         <Icon name="printer" />
         Imprimir dia
+      </button>
+      <button v-if="canPause" class="btn secondary agenda-cta" type="button" @click="showPause = !showPause">
+        <Icon name="ban" />
+        {{ showPause ? 'Fechar' : 'Pausar agendamentos' }}
       </button>
       <button class="btn agenda-cta" @click="showForm = !showForm">
         <Icon v-if="!showForm" name="plus" />
@@ -232,6 +323,54 @@ async function createAppointment() {
   </div>
 
   <div v-if="error" class="alert alert-danger">{{ error }}</div>
+  <div v-if="notice" class="alert alert-success notice-row">
+    <span>{{ notice.text }}</span>
+    <a v-if="notice.wa" :href="notice.wa" target="_blank" rel="noopener" class="btn small">
+      <Icon name="whatsapp" />Avisar no WhatsApp
+    </a>
+    <button type="button" class="link-btn" @click="notice = null">ok</button>
+  </div>
+
+  <!-- Pausar agendamentos neste dia -->
+  <form v-if="showPause" class="appt-form" @submit.prevent="addPause">
+    <div class="appt-form-head">
+      <h3>Pausar agendamentos</h3>
+      <small class="muted">em {{ formatDate(zonedToUtc(date, '12:00', tz), tz) }} · a vitrine não oferece esse período</small>
+    </div>
+    <div class="row">
+      <div class="field"><label>Das</label><input v-model="pauseForm.from" type="time" required /></div>
+      <div class="field"><label>Até</label><input v-model="pauseForm.to" type="time" required /></div>
+      <div class="field"><label>Motivo <small>(só você vê)</small></label><input v-model="pauseForm.reason" placeholder="Ex.: sessão longa" /></div>
+    </div>
+    <button class="btn"><Icon name="ban" />Pausar</button>
+  </form>
+  <div v-if="pauses.length" class="pause-list">
+    <div v-for="p in pauses" :key="p.id" class="pause-item">
+      <Icon name="ban" />
+      <span>
+        <strong>Pausado {{ formatTime(p.starts_at, tz) }}–{{ formatTime(p.ends_at, tz) }}</strong>
+        <small v-if="p.reason" class="muted"> · {{ p.reason }}</small>
+      </span>
+      <button type="button" class="btn small secondary" @click="removePause(p)">Liberar</button>
+    </div>
+  </div>
+
+  <!-- Remarcar -->
+  <form v-if="moving" id="move-card" class="appt-form" @submit.prevent="saveMove">
+    <div class="appt-form-head">
+      <h3>Remarcar {{ moving.customer?.name }}</h3>
+      <small class="muted">{{ moving.service?.name }} · hoje em {{ formatDateTime(moving.starts_at, tz) }}</small>
+    </div>
+    <div class="row">
+      <div class="field"><label>Novo dia</label><input v-model="moveForm.date" type="date" required /></div>
+      <div class="field"><label>Novo horário</label><input v-model="moveForm.time" type="time" required /></div>
+    </div>
+    <div class="row">
+      <button type="button" class="btn secondary shrink" @click="moving = null">Cancelar</button>
+      <button class="btn shrink"><Icon name="calendar" />Salvar novo horário</button>
+    </div>
+    <small class="muted">Depois de salvar aparece o botão pra avisar o cliente no WhatsApp.</small>
+  </form>
 
   <!-- Form de novo agendamento -->
   <form v-if="showForm" class="appt-form" @submit.prevent="createAppointment">
@@ -272,6 +411,19 @@ async function createAppointment() {
       <div class="field"><label>Duração (min)</label><input v-model="form.duration_min" type="number" min="5" max="720" step="5" required /></div>
     </div>
     <div class="field"><label>Observações</label><input v-model="form.notes" placeholder="Opcional" /></div>
+    <div v-if="conflicts.length" class="conflict-box">
+      <strong>Esse horário bate com:</strong>
+      <div v-for="c in conflicts" :key="c.id" class="conflict-item">
+        <span>
+          {{ c.customer?.name }} · {{ c.service?.name }} ·
+          {{ formatDateTime(c.starts_at, tz) }}–{{ formatTime(c.ends_at, tz) }}
+        </span>
+        <button type="button" class="btn small secondary" @click="startMove(c)">
+          <Icon name="calendar" />Remarcar
+        </button>
+      </div>
+      <small class="muted">Remarque o cliente e depois toque em Agendar de novo.</small>
+    </div>
     <button class="btn">Agendar</button>
   </form>
 
@@ -330,6 +482,8 @@ async function createAppointment() {
               <a v-if="biz.hasFeature('lembretes') && reminder(a) && ['scheduled', 'confirmed'].includes(a.status)"
                  class="btn small secondary" :href="reminder(a)" target="_blank" rel="noopener"
                  title="Enviar lembrete pelo WhatsApp">Lembrar</a>
+              <button v-if="['scheduled', 'confirmed'].includes(a.status)" class="btn small secondary" type="button"
+                      @click="startMove(a)">Remarcar</button>
               <button class="btn small secondary print-btn" type="button" title="Imprimir comprovante"
                       aria-label="Imprimir comprovante" @click="printAppointment(a, biz.business)">
                 <Icon name="printer" />
@@ -371,6 +525,8 @@ async function createAppointment() {
             </select>
             <a v-if="biz.hasFeature('lembretes') && reminder(a) && ['scheduled', 'confirmed'].includes(a.status)"
                class="btn small secondary" :href="reminder(a)" target="_blank" rel="noopener">Lembrar</a>
+            <button v-if="['scheduled', 'confirmed'].includes(a.status)" class="btn small secondary" type="button"
+                    @click="startMove(a)">Remarcar</button>
             <button class="btn small secondary print-btn" type="button" title="Imprimir comprovante"
                     aria-label="Imprimir comprovante" @click="printAppointment(a, biz.business)">
               <Icon name="printer" />
@@ -679,6 +835,25 @@ async function createAppointment() {
 }
 .appt-table td strong { display: block; font-weight: 600; }
 .appt-table td small { display: block; font-size: 0.78rem; margin-top: 2px; }
+
+/* Aviso com botão, pausas do dia e conflito do agendamento manual */
+.notice-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.notice-row span { flex: 1 1 200px; }
+.notice-row .btn :deep(svg) { width: 15px; height: 15px; }
+.pause-list { display: grid; gap: 8px; margin-bottom: 16px; }
+.pause-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; border-radius: 12px;
+  background: var(--surface); border: 1px dashed var(--border);
+}
+.pause-item > :deep(svg) { width: 16px; height: 16px; color: var(--warning, #facc15); flex-shrink: 0; }
+.pause-item span { flex: 1; min-width: 0; }
+.conflict-box {
+  display: grid; gap: 8px; margin: 4px 0 14px; padding: 12px 14px; border-radius: 12px;
+  background: rgba(250, 204, 21, 0.08); border: 1px solid rgba(250, 204, 21, 0.35);
+}
+.conflict-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.conflict-item .btn :deep(svg) { width: 14px; height: 14px; }
 
 /* Orçamento: ideia do cliente e foto de referência */
 .appt-notes {
