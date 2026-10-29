@@ -1,11 +1,13 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { supabase, unwrap } from '@/lib/supabase'
 import { useBusiness } from '@/lib/business'
 import { money, formatDate, SUBSCRIPTION_STATUS } from '@/lib/format'
 import { SUPPORT_WHATSAPP } from '@/config/brand'
 import Icon from '@/components/Icon.vue'
 import SetupOffer from '@/components/SetupOffer.vue'
+import { ask } from '@/lib/confirm'
+import { toast } from '@/lib/toast'
 
 const PLAN_PITCH = {
   solo: 'Pra quem está começando ou toca o negócio sozinho.',
@@ -73,6 +75,8 @@ const showPayForm = ref(false)
 const paying = ref(false)
 const onlineUnavailable = ref(false)
 const info = ref('')
+// Todo aviso de sucesso desta tela também aparece no canto (toast).
+watch(info, (m) => { if (m) toast(typeof m === 'string' ? m : m.text) })
 const invoiceUrl = ref('')
 
 async function functionError(err) {
@@ -111,7 +115,7 @@ async function payOnline() {
 
 async function cancelSubscription() {
   const until = sub.value.current_period_end ? ` Sua vitrine continua no ar até ${formatDate(sub.value.current_period_end)}.` : ''
-  if (!confirm(`Cancelar a assinatura?${until}`)) return
+  if (!await ask(`Cancelar a assinatura?${until}`)) return
   error.value = ''
   const { error: err } = await supabase.functions.invoke('asaas-checkout', { body: { action: 'cancel' } })
   if (err) { error.value = await functionError(err); return }

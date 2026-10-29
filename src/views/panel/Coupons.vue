@@ -1,15 +1,19 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { supabase, unwrap } from '@/lib/supabase'
 import { useBusiness } from '@/lib/business'
 import { money, formatDate, zonedToUtc, plural } from '@/lib/format'
 import Icon from '@/components/Icon.vue'
 import Upsell from '@/components/Upsell.vue'
+import { ask } from '@/lib/confirm'
+import { toast } from '@/lib/toast'
 
 const biz = useBusiness()
 const coupons = ref([])
 const error = ref('')
 const msg = ref('')
+// Todo aviso de sucesso desta tela também aparece no canto (toast).
+watch(msg, (m) => { if (m) toast(typeof m === 'string' ? m : m.text) })
 const empty = () => ({ code: '', kind: 'percent', value: 10, min_order: 0, valid_until: '', max_uses: '' })
 const form = ref(empty())
 const formEl = ref(null)
@@ -45,7 +49,7 @@ async function toggle(c) {
   load()
 }
 async function remove(c) {
-  if (!confirm(`Excluir o cupom ${c.code}?`)) return
+  if (!await ask(`Excluir o cupom ${c.code}?`)) return
   await supabase.from('coupons').delete().eq('id', c.id)
   msg.value = `${c.code} excluído.`
   load()

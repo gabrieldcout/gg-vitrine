@@ -4,6 +4,7 @@ import { supabase, unwrap } from '@/lib/supabase'
 import { useBusiness } from '@/lib/business'
 import { WEEKDAYS } from '@/lib/format'
 import Icon from '@/components/Icon.vue'
+import { toast } from '@/lib/toast'
 
 const biz = useBusiness()
 const professionals = ref([])
@@ -11,6 +12,8 @@ const selected = ref(null)
 const days = ref([])   // [{ weekday, open, intervals: [{ start, end }] }]
 const error = ref('')
 const saved = ref(false)
+// Todo aviso de sucesso desta tela também aparece no canto (toast).
+watch(saved, (m) => { if (m) toast(typeof m === 'string' ? m : m.text) })
 
 const label = computed(() => biz.business.staff_label || 'Profissional')
 const labelLow = computed(() => label.value.toLowerCase())

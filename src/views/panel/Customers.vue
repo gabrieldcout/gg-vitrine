@@ -1,15 +1,18 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { supabase, unwrap } from '@/lib/supabase'
 import { useBusiness } from '@/lib/business'
 import { money, formatDateTime, APPOINTMENT_STATUS, plural } from '@/lib/format'
 import Icon from '@/components/Icon.vue'
+import { toast } from '@/lib/toast'
 
 const biz = useBusiness()
 const customers = ref([])
 const search = ref('')
 const error = ref('')
 const saved = ref('')
+// Todo aviso de sucesso desta tela também aparece no canto (toast).
+watch(saved, (m) => { if (m) toast(typeof m === 'string' ? m : m.text) })
 const selected = ref(null)
 const history = ref([])
 const form = ref({ name: '', phone: '', email: '', notes: '' })

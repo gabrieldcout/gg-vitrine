@@ -1,10 +1,12 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { supabase, unwrap } from '@/lib/supabase'
 import { useBusiness } from '@/lib/business'
 import { formatDate, plural } from '@/lib/format'
 import Icon from '@/components/Icon.vue'
 import Upsell from '@/components/Upsell.vue'
+import { ask } from '@/lib/confirm'
+import { toast } from '@/lib/toast'
 
 const biz = useBusiness()
 // No cardápio o carimbo vem do pedido entregue; na agenda, do atendimento concluído.
@@ -17,6 +19,8 @@ const search = ref('')
 const newCard = ref({ phone: '', name: '' })
 const error = ref('')
 const msg = ref('')
+// Todo aviso de sucesso desta tela também aparece no canto (toast).
+watch(msg, (m) => { if (m) toast(typeof m === 'string' ? m : m.text) })
 
 const digits = (v) => (v ?? '').replace(/\D/g, '')
 const filtered = computed(() => {
@@ -65,7 +69,7 @@ async function stamp(c, delta) {
 }
 
 async function redeem(c) {
-  if (!confirm(`Resgatar "${program.value.reward}" para ${c.name || c.phone}?`)) return
+  if (!await ask(`Resgatar "${program.value.reward}" para ${c.name || c.phone}?`)) return
   await supabase.from('loyalty_cards').update({
     stamps: c.stamps - stampsRequired.value, rewards_redeemed: c.rewards_redeemed + 1, updated_at: new Date().toISOString(),
   }).eq('id', c.id)

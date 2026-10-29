@@ -5,6 +5,7 @@ import { money, todayISO } from '@/lib/format'
 import { waLink } from '@/lib/whatsapp'
 import { alarmUrl } from '@/lib/alarm'
 import Icon from '@/components/Icon.vue'
+import { ask } from '@/lib/confirm'
 
 // Vitrine em modo fila: o cliente escolhe o serviço, entra na fila do dia e
 // acompanha quantos estão na frente e a previsão. A senha fica guardada no
@@ -206,7 +207,7 @@ async function join() {
 }
 
 async function leave() {
-  if (!confirm(`Sair da fila? Você perde a senha #${ticket.value.number}.`)) return
+  if (!await ask(`Sair da fila? Você perde a senha #${ticket.value.number}.`)) return
   await supabase.rpc('leave_queue', { p_entry: ticket.value.id })
   refresh()
 }

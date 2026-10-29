@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { supabase, unwrap } from '@/lib/supabase'
 import { useBusiness } from '@/lib/business'
 import { money, formatTime, todayISO } from '@/lib/format'
@@ -7,6 +7,8 @@ import { waLink } from '@/lib/whatsapp'
 import { alarmUrl } from '@/lib/alarm'
 import { APP_DOMAIN } from '@/config/brand'
 import Icon from '@/components/Icon.vue'
+import { ask } from '@/lib/confirm'
+import { toast } from '@/lib/toast'
 
 // Fila por ordem de chegada: o cliente entra pela vitrine (ou o dono lança
 // quem chegou no balcão) e a loja vai chamando um por um.
@@ -20,6 +22,8 @@ const isToday = computed(() => day.value === todayISO(tz.value))
 const filter = ref('fila')
 const error = ref('')
 const msg = ref('')
+// Todo aviso de sucesso desta tela também aparece no canto (toast).
+watch(msg, (m) => { if (m) toast(typeof m === 'string' ? m : m.text) })
 const now = ref(Date.now())
 
 const STATUS = {
@@ -104,7 +108,7 @@ async function patchBusiness(patch) {
   return true
 }
 async function setToday(mode, untilTime = null) {
-  if (mode === 'encerrada' && !confirm('Encerrar a entrada de novos clientes por hoje? Quem já está na fila continua. Amanhã a fila volta ao horário de sempre.')) return
+  if (mode === 'encerrada' && !await ask('Encerrar a entrada de novos clientes por hoje? Quem já está na fila continua. Amanhã a fila volta ao horário de sempre.')) return
   const patch = hasToday.value
     ? { queue_today: todayISO(tz.value), queue_today_mode: mode, queue_today_until: untilTime, queue_closed_on: null }
     : { queue_closed_on: mode === 'encerrada' ? todayISO(tz.value) : null }
@@ -134,9 +138,10 @@ function notifyLink(n) {
 async function markNotified(n) {
   await supabase.from('queue_notify').update({ notified_at: new Date().toISOString() }).eq('id', n.id)
   notifyList.value = notifyList.value.filter((x) => x.id !== n.id)
+  toast(`${n.name} marcado como avisado.`)
 }
 async function removeNotify(n) {
-  if (!confirm(`Tirar ${n.name} da lista de aviso?`)) return
+  if (!await ask(`Tirar ${n.name} da lista de aviso?`)) return
   await supabase.from('queue_notify').delete().eq('id', n.id)
   notifyList.value = notifyList.value.filter((x) => x.id !== n.id)
 }
@@ -218,10 +223,11 @@ function markReady(e) {
 }
 
 async function setStatus(e, status) {
-  if (status === 'cancelado' && !confirm(`Tem certeza que deseja tirar #${e.number} (${e.customer_name}) da fila?`)) return
+  if (status === 'cancelado' && !await ask(`Tem certeza que deseja tirar #${e.number} (${e.customer_name}) da fila?`)) return
   const patch = { status, ...(status === 'cancelado' ? { canceled_by: 'loja' } : {}) }
   const { error: err } = await supabase.from('queue_entries').update(patch).eq('id', e.id)
   if (err) { error.value = err.message; return }
+  toast(status === 'cancelado' ? `#${e.number} saiu da fila.` : `#${e.number} (${e.customer_name}) atualizado.`)
   load()
 }
 async function editPrice(e) {
@@ -231,6 +237,7 @@ async function editPrice(e) {
   if (!Number.isFinite(price) || price < 0) { error.value = 'Valor inválido.'; return }
   const { error: err } = await supabase.from('queue_entries').update({ price }).eq('id', e.id)
   if (err) { error.value = err.message; return }
+  toast('Valor atualizado.')
   load()
 }
 function customerLink(e) {

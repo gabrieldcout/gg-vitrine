@@ -4,6 +4,7 @@ import QRCode from 'qrcode'
 import { useBusiness } from '@/lib/business'
 import { APP_NAME } from '@/config/brand'
 import Icon from '@/components/Icon.vue'
+import { toast } from '@/lib/toast'
 
 const biz = useBusiness()
 const link = computed(() => `${location.origin}/${biz.business.slug}`)
@@ -25,6 +26,7 @@ onMounted(async () => {
 async function copy() {
   await navigator.clipboard.writeText(link.value)
   copied.value = true
+  toast('Link copiado!')
   setTimeout(() => { copied.value = false }, 2000)
 }
 

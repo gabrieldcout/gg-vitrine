@@ -6,6 +6,7 @@ import { money, formatTime, formatDate, formatDateTime, todayISO, addDaysISO, zo
 import { waLink } from '@/lib/whatsapp'
 import { shrinkImage } from '@/lib/image'
 import Icon from '@/components/Icon.vue'
+import { ask } from '@/lib/confirm'
 
 const props = defineProps({ business: { type: Object, required: true } })
 const business = computed(() => props.business)
@@ -284,7 +285,7 @@ watch([tab, () => session.user?.id], () => { if (tab.value === 'meus') loadMine(
 const canChange = (a) => ['scheduled', 'confirmed'].includes(a.status) && new Date(a.starts_at) > new Date()
 
 async function cancel(a) {
-  if (!window.confirm('Cancelar este agendamento?')) return
+  if (!await ask('Cancelar este agendamento?')) return
   const { error: err } = await supabase.rpc('cancel_my_appointment', { p_id: a.id })
   if (err) error.value = err.message
   loadMine()

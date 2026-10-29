@@ -1,13 +1,16 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { supabase, unwrap } from '@/lib/supabase'
 import { useBusiness } from '@/lib/business'
 import { WEEKDAYS } from '@/lib/format'
 import { catalogWord } from '@/config/brand'
+import { toast } from '@/lib/toast'
 
 const biz = useBusiness()
 const error = ref('')
 const saved = ref('')
+// Todo aviso de sucesso desta tela também aparece no canto (toast).
+watch(saved, (m) => { if (m) toast(typeof m === 'string' ? m : m.text) })
 const settings = ref({})
 const days = ref([])   // [{ weekday, open, intervals: [{ start, end }] }]
 const zones = ref([])  // bairros atendidos: [{ name, fee }]

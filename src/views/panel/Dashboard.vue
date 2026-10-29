@@ -5,6 +5,7 @@ import { useBusiness } from '@/lib/business'
 import { money } from '@/lib/format'
 import Icon from '@/components/Icon.vue'
 import SourceBadge from '@/components/SourceBadge.vue'
+import { toast } from '@/lib/toast'
 
 const biz = useBusiness()
 
@@ -393,6 +394,7 @@ async function saveSale() {
   saleSaving.value = false
   if (err) { saleError.value = err.message; return }
   saleMsg.value = 'Venda registrada! Já aparece no faturamento.'
+  toast(saleMsg.value)
   showSale.value = false
   await load()
 }

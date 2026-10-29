@@ -1,15 +1,19 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { shrinkImage, isVideo } from '@/lib/image'
 import { supabase, unwrap } from '@/lib/supabase'
 import { useBusiness } from '@/lib/business'
 import Icon from '@/components/Icon.vue'
 import Upsell from '@/components/Upsell.vue'
+import { ask } from '@/lib/confirm'
+import { toast } from '@/lib/toast'
 
 const biz = useBusiness()
 const photos = ref([])
 const error = ref('')
 const msg = ref('')
+// Todo aviso de sucesso desta tela também aparece no canto (toast).
+watch(msg, (m) => { if (m) toast(typeof m === 'string' ? m : m.text) })
 const uploading = ref(0)
 const dragover = ref(false)
 const fileInput = ref(null)
@@ -72,7 +76,7 @@ async function saveCaption(p, caption) {
 }
 
 async function remove(p) {
-  if (!confirm(isVideo(p.url) ? 'Remover este vídeo?' : 'Remover esta foto?')) return
+  if (!await ask(isVideo(p.url) ? 'Remover este vídeo?' : 'Remover esta foto?')) return
   await supabase.from('gallery_photos').delete().eq('id', p.id)
   msg.value = 'Removido da galeria.'
   load()

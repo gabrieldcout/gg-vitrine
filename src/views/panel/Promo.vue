@@ -1,10 +1,11 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { supabase } from '@/lib/supabase'
 import { useBusiness } from '@/lib/business'
 import { formatDate, todayISO, zonedToUtc } from '@/lib/format'
 import Icon from '@/components/Icon.vue'
 import PromoBanner from '@/components/public/PromoBanner.vue'
+import { toast } from '@/lib/toast'
 
 const biz = useBusiness()
 const tz = computed(() => biz.business.timezone)
@@ -17,6 +18,8 @@ const form = ref({
 })
 const error = ref('')
 const msg = ref('')
+// Todo aviso de sucesso desta tela também aparece no canto (toast).
+watch(msg, (m) => { if (m) toast(typeof m === 'string' ? m : m.text) })
 const busy = ref(false)
 
 const expired = computed(() => form.value.promo_until && form.value.promo_until < todayISO(tz.value))

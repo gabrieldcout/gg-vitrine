@@ -7,6 +7,8 @@ import { money, plural } from '@/lib/format'
 import Icon from '@/components/Icon.vue'
 import SetupOffer from '@/components/SetupOffer.vue'
 import { catalogWord } from '@/config/brand'
+import { ask } from '@/lib/confirm'
+import { toast } from '@/lib/toast'
 
 const biz = useBusiness()
 const categories = ref([])
@@ -40,6 +42,7 @@ async function run(promise) {
   error.value = ''
   const { error: err } = await promise
   if (err) error.value = err.message
+  else toast('Cardápio atualizado.')
   await load()
   return !err
 }
@@ -59,9 +62,9 @@ function renameCategory(c) {
   if (name?.trim()) run(supabase.from('menu_categories').update({ name: name.trim() }).eq('id', c.id))
 }
 
-function removeCategory(c) {
+async function removeCategory(c) {
   const count = itemsByCategory.value[c.id].length
-  if (!confirm(count ? `Excluir "${c.name}" e o que está dentro dela (${count})?` : `Excluir "${c.name}"?`)) return
+  if (!await ask(count ? `Excluir "${c.name}" e o que está dentro dela (${count})?` : `Excluir "${c.name}"?`)) return
   run(supabase.from('menu_categories').delete().eq('id', c.id))
 }
 
@@ -95,8 +98,8 @@ async function saveItem() {
   if (ok) editing.value = null
 }
 
-function removeItem(i) {
-  if (confirm(`Excluir "${i.name}"?`)) run(supabase.from('menu_items').delete().eq('id', i.id))
+async function removeItem(i) {
+  if (await ask(`Excluir "${i.name}"?`)) run(supabase.from('menu_items').delete().eq('id', i.id))
 }
 
 function toggleAvailable(i) {

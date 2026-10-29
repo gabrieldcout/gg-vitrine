@@ -1,15 +1,18 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { supabase, unwrap } from '@/lib/supabase'
 import { useBusiness } from '@/lib/business'
 import { plural } from '@/lib/format'
 import Icon from '@/components/Icon.vue'
+import { toast } from '@/lib/toast'
 
 const biz = useBusiness()
 const professionals = ref([])
 const services = ref([])
 const error = ref('')
 const saved = ref('')
+// Todo aviso de sucesso desta tela também aparece no canto (toast).
+watch(saved, (m) => { if (m) toast(typeof m === 'string' ? m : m.text) })
 // Profissional novo já vem com todos os serviços marcados (o caso mais comum).
 const empty = () => ({ id: null, name: '', phone: '', email: '', active: true, service_ids: services.value.map((s) => s.id) })
 const form = ref(empty())

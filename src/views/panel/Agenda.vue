@@ -6,6 +6,8 @@ import { plural, money, formatTime, formatDate, formatDateTime, todayISO, addDay
 import { waLink } from '@/lib/whatsapp'
 import { printAppointment, printDay } from '@/lib/print'
 import Icon from '@/components/Icon.vue'
+import { ask } from '@/lib/confirm'
+import { toast } from '@/lib/toast'
 
 const biz = useBusiness()
 const tz = computed(() => biz.business.timezone)
@@ -118,9 +120,13 @@ watch([date, mode], loadAppointments)
 
 async function setStatus(a, status) {
   error.value = ''
+  if (status === 'canceled' && !await ask(`Cancelar o agendamento de ${a.customer?.name} (${formatDateTime(a.starts_at, tz.value)})?
+O horário volta a ficar livre na vitrine.`)) { loadAppointments(); return }
+  if (status === 'no_show' && !await ask(`Marcar que ${a.customer?.name} não compareceu?`)) { loadAppointments(); return }
   const patch = { status, canceled_at: status === 'canceled' ? new Date().toISOString() : null }
   const { error: err } = await supabase.from('appointments').update(patch).eq('id', a.id)
   if (err) error.value = err.message
+  else toast(`${a.customer?.name}: ${APPOINTMENT_STATUS[status]}.`)
   loadAppointments()
 }
 
@@ -207,6 +213,8 @@ watch(form, () => { if (missing.value.length) checkForm() }, { deep: true })
 
 // Aviso depois de remarcar/pausar, com link opcional pro WhatsApp do cliente.
 const notice = ref(null)   // { text, wa }
+// Todo aviso de sucesso desta tela também aparece no canto (toast).
+watch(notice, (m) => { if (m) toast(typeof m === 'string' ? m : m.text) })
 
 // ---------------- Remarcar (dono muda o horário do cliente) ----------------
 const moving = ref(null)   // agendamento sendo remarcado
@@ -228,6 +236,7 @@ async function saveMove() {
   const a = moving.value
   const starts = zonedToUtc(moveForm.value.date, moveForm.value.time, tz.value)
   const ends = new Date(starts.getTime() + (new Date(a.ends_at) - new Date(a.starts_at)))
+  if (!await ask(`Remarcar ${a.customer?.name} para ${formatDateTime(starts.toISOString(), tz.value)}?`, { confirmLabel: 'Remarcar' })) return
   const { error: err } = await supabase.from('appointments')
     .update({ starts_at: starts.toISOString(), ends_at: ends.toISOString() }).eq('id', a.id)
   if (err) {
@@ -280,9 +289,10 @@ async function addPause() {
 }
 
 async function removePause(p) {
-  if (!confirm('Liberar esse período de novo na vitrine?')) return
+  if (!await ask('Liberar esse período de novo na vitrine?')) return
   const { error: err } = await supabase.from('time_off').delete().eq('id', p.id)
   if (err) { error.value = err.message; return }
+  toast('Período liberado na vitrine.')
   loadPauses()
 }
 </script>

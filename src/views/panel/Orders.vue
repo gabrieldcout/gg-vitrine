@@ -10,6 +10,8 @@ import ManualOrder from '@/components/ManualOrder.vue'
 import SourceBadge from '@/components/SourceBadge.vue'
 import Icon from '@/components/Icon.vue'
 import { catalogWord } from '@/config/brand'
+import { ask } from '@/lib/confirm'
+import { toast } from '@/lib/toast'
 
 const biz = useBusiness()
 const tz = computed(() => biz.business.timezone)
@@ -54,6 +56,7 @@ async function toggleAutoAccept() {
   const { error: err } = await supabase.from('businesses').update({ auto_accept: value }).eq('id', biz.business.id)
   if (err) { error.value = err.message; return }
   biz.business.auto_accept = value
+  toast(value ? 'Aceite automático ligado.' : 'Aceite automático desligado.')
 }
 
 // O navegador só libera som depois de um toque na página: o primeiro toque em
@@ -217,6 +220,7 @@ onUnmounted(() => {
 async function setStatus(o, status) {
   const { error: err } = await supabase.from('orders').update({ status }).eq('id', o.id)
   if (err) error.value = err.message
+  else toast(status === 'cancelado' ? `Pedido #${o.number} cancelado.` : `Pedido #${o.number} atualizado.`)
   load()
 }
 
@@ -232,8 +236,8 @@ function waState(o) {
 }
 
 // Confirma antes de cancelar: o botão fica do lado dos outros e é fácil tocar sem querer.
-function cancelOrder(o) {
-  if (!confirm(`Tem certeza que deseja cancelar o pedido #${o.number} de ${o.customer_name}?`)) return
+async function cancelOrder(o) {
+  if (!await ask(`Tem certeza que deseja cancelar o pedido #${o.number} de ${o.customer_name}?`)) return
   setStatus(o, 'cancelado')
 }
 

@@ -1,11 +1,12 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { supabase, unwrap } from '@/lib/supabase'
 import { useBusiness } from '@/lib/business'
 import { formatDateTime, formatTime } from '@/lib/format'
 import { waLink } from '@/lib/whatsapp'
 import Icon from '@/components/Icon.vue'
 import Upsell from '@/components/Upsell.vue'
+import { toast } from '@/lib/toast'
 
 const biz = useBusiness()
 const tz = computed(() => biz.business.timezone)
@@ -26,6 +27,8 @@ const upcoming = ref([])
 const log = ref([])
 const missingStaffContact = ref([])
 const msg = ref('')
+// Todo aviso de sucesso desta tela também aparece no canto (toast).
+watch(msg, (m) => { if (m) toast(typeof m === 'string' ? m : m.text) })
 const error = ref('')
 const activeTab = ref('cliente')
 

@@ -6,10 +6,14 @@ import { useBusiness } from '@/lib/business'
 import { categoriesFor, APP_DOMAIN, STAFF_LABELS } from '@/config/brand'
 import { brandVars } from '@/lib/colors'
 import Icon from '@/components/Icon.vue'
+import { ask } from '@/lib/confirm'
+import { toast } from '@/lib/toast'
 
 const biz = useBusiness()
 const form = ref({})
 const msg = ref('')
+// Todo aviso de sucesso desta tela também aparece no canto (toast).
+watch(msg, (m) => { if (m) toast(typeof m === 'string' ? m : m.text) })
 const error = ref('')
 const uploading = ref(false)
 const dragOver = ref(false)
@@ -76,7 +80,7 @@ async function setMode(mode) {
   const text = mode === 'fila'
     ? 'Mudar para fila por ordem de chegada? A vitrine deixa de mostrar horários e passa a mostrar a fila.'
     : 'Mudar para horário marcado? A vitrine volta a mostrar os horários livres.'
-  if (!confirm(text)) return
+  if (!await ask(text)) return
   const { error: err } = await supabase.rpc('set_business_mode', { p_business: biz.business.id, p_mode: mode })
   if (err) { error.value = err.message; return }
   biz.business.kind = mode
@@ -136,8 +140,8 @@ async function onCoverChange(event) {
   msg.value = 'Capa carregada. Toque em Salvar pra ela ir pra vitrine.'
 }
 
-function removeLogo() {
-  if (!confirm('Remover a logo?')) return
+async function removeLogo() {
+  if (!await ask('Remover a logo?')) return
   form.value.logo_url = null
 }
 

@@ -1,9 +1,11 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { supabase, unwrap } from '@/lib/supabase'
 import { useBusiness } from '@/lib/business'
 import { formatDateTime, formatTime, todayISO, addDaysISO, zonedToUtc } from '@/lib/format'
 import Icon from '@/components/Icon.vue'
+import { ask } from '@/lib/confirm'
+import { toast } from '@/lib/toast'
 
 const biz = useBusiness()
 const tz = computed(() => biz.business.timezone)
@@ -12,6 +14,8 @@ const items = ref([])
 const professionals = ref([])
 const error = ref('')
 const saved = ref('')
+// Todo aviso de sucesso desta tela também aparece no canto (toast).
+watch(saved, (m) => { if (m) toast(typeof m === 'string' ? m : m.text) })
 const emptyForm = () => ({
   kind: 'bloqueio', professional_id: '', reason: '',
   start_date: todayISO(tz.value), start_time: '12:00',
@@ -47,7 +51,7 @@ async function add() {
 }
 
 async function remove(item) {
-  if (!confirm(`Remover ${item.kind === 'folga' ? 'esta folga' : 'este bloqueio'}?`)) return
+  if (!await ask(`Remover ${item.kind === 'folga' ? 'esta folga' : 'este bloqueio'}?`)) return
   const { error: err } = await supabase.from('time_off').delete().eq('id', item.id)
   if (err) { error.value = err.message; return }
   saved.value = `${item.kind === 'folga' ? 'Folga' : 'Bloqueio'} removido.`
