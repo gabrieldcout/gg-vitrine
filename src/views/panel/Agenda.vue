@@ -304,6 +304,10 @@ async function createAppointment() {
             <td>
               <strong>{{ a.service?.name }}</strong>
               <small class="muted">{{ money(a.price) }}</small>
+              <small v-if="a.notes" class="appt-notes">{{ a.notes }}</small>
+              <a v-if="a.reference_url" :href="a.reference_url" target="_blank" rel="noopener" class="appt-ref">
+                <img :src="a.reference_url" alt="Foto de referência" />
+              </a>
             </td>
             <td>{{ a.professional?.name }}</td>
             <td><span :class="['badge', STATUS_BADGE[a.status]]">{{ APPOINTMENT_STATUS[a.status] }}</span></td>
@@ -346,6 +350,10 @@ async function createAppointment() {
             <span class="muted">{{ biz.business.staff_label }}: <strong style="color: var(--text)">{{ a.professional?.name }}</strong></span>
           </div>
           <small v-if="a.customer?.phone" class="muted">{{ a.customer.phone }}</small>
+          <small v-if="a.notes" class="appt-notes">{{ a.notes }}</small>
+          <a v-if="a.reference_url" :href="a.reference_url" target="_blank" rel="noopener" class="appt-ref">
+            <img :src="a.reference_url" alt="Foto de referência" />
+          </a>
           <div class="appt-actions">
             <select v-if="a.status !== 'canceled'" :value="a.status" @change="setStatus(a, $event.target.value)">
               <option v-for="(label, key) in APPOINTMENT_STATUS" :key="key" :value="key">{{ label }}</option>
@@ -660,6 +668,17 @@ async function createAppointment() {
 }
 .appt-table td strong { display: block; font-weight: 600; }
 .appt-table td small { display: block; font-size: 0.78rem; margin-top: 2px; }
+
+/* Orçamento: ideia do cliente e foto de referência */
+.appt-notes {
+  display: block; max-width: 260px; margin-top: 4px;
+  color: var(--text); font-size: 0.8rem; white-space: pre-line;
+}
+.appt-ref { display: inline-block; margin-top: 6px; }
+.appt-ref img {
+  display: block; width: 64px; height: 64px; border-radius: 10px;
+  object-fit: cover; border: 1px solid var(--border);
+}
 .appt-table .col-actions {
   white-space: nowrap;
   display: flex; gap: 6px; align-items: center;

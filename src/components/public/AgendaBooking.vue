@@ -4,6 +4,7 @@ import { supabase, unwrap } from '@/lib/supabase'
 import { session, signOut } from '@/lib/session'
 import { money, formatTime, formatDate, formatDateTime, todayISO, addDaysISO, zonedToUtc, APPOINTMENT_STATUS } from '@/lib/format'
 import { waLink } from '@/lib/whatsapp'
+import { shrinkImage } from '@/lib/image'
 import Icon from '@/components/Icon.vue'
 
 const props = defineProps({ business: { type: Object, required: true } })
@@ -166,32 +167,102 @@ async function applyCoupon() {
 }
 const finalPrice = computed(() => Math.max(Number(service.value?.price ?? 0) - Number(coupon.value?.discount ?? 0), 0))
 
+// Preço de serviço de orçamento: o valor cadastrado é o mínimo.
+function priceLabel(s, value = s.price) {
+  if (!s.quote) return money(value)
+  return Number(value) > 0 ? `a partir de ${money(value)}` : 'Sob orçamento'
+}
+
+// ---------------- Orçamento (ideia + foto de referência) ----------------
+const idea = ref('')
+const photo = ref(null)        // File escolhido
+const photoPreview = ref('')
+
+function pickPhoto(e) {
+  const file = e.target.files?.[0]
+  e.target.value = ''
+  if (!file) return
+  if (photoPreview.value) URL.revokeObjectURL(photoPreview.value)
+  photo.value = file
+  photoPreview.value = URL.createObjectURL(file)
+}
+
+function removePhoto() {
+  if (photoPreview.value) URL.revokeObjectURL(photoPreview.value)
+  photo.value = null
+  photoPreview.value = ''
+}
+
+async function uploadPhoto() {
+  const small = await shrinkImage(photo.value, { max: 1400 })
+  if (small.file.size > 5 * 1024 * 1024) throw new Error('A foto tem mais de 5 MB. Escolha outra.')
+  const path = `${session.user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${small.ext}`
+  const { error: err } = await supabase.storage.from('referencias').upload(path, small.file)
+  if (err) throw new Error('Não deu pra enviar a foto. Tente de novo.')
+  return supabase.storage.from('referencias').getPublicUrl(path).data.publicUrl
+}
+
 async function confirm() {
   error.value = ''
+  const quote = service.value.quote
+  if (quote && !photo.value && idea.value.trim().length < 5) {
+    error.value = 'Conte sua ideia ou mande uma foto de referência.'
+    return
+  }
+  // No orçamento o WhatsApp abre no fim; a aba é aberta já no toque
+  // (senão o navegador do celular bloqueia por ter vindo depois do await).
+  const waTab = quote && business.value.phone ? window.open('', '_blank') : null
   busy.value = true
-  const { error: err } = await supabase.rpc('book_appointment', {
-    p_business: business.value.id, p_service: service.value.id,
-    p_professional: slot.value.professional_id, p_starts_at: slot.value.starts_at,
-    p_name: customer.value.name, p_phone: customer.value.phone,
-    p_coupon: coupon.value?.code ?? null,
-  })
-  busy.value = false
-  if (err) { error.value = err.message; loadSlots(); return }
-  booked.value = { ...slot.value, service: service.value, price: finalPrice.value }
+  try {
+    const photoUrl = quote && photo.value ? await uploadPhoto() : null
+    const { error: err } = await supabase.rpc('book_appointment', {
+      p_business: business.value.id, p_service: service.value.id,
+      p_professional: slot.value.professional_id, p_starts_at: slot.value.starts_at,
+      p_name: customer.value.name, p_phone: customer.value.phone,
+      p_notes: quote ? idea.value.trim() || null : null,
+      p_coupon: quote ? null : coupon.value?.code ?? null,
+      p_photo: photoUrl,
+    })
+    if (err) { loadSlots(); throw err }
+    booked.value = {
+      ...slot.value, service: service.value, price: quote ? service.value.price : finalPrice.value,
+      idea: quote ? idea.value.trim() : '', photo: photoUrl,
+    }
+  } catch (err) {
+    waTab?.close()
+    error.value = err.message
+    return
+  } finally {
+    busy.value = false
+  }
+  if (waTab && bookedWaLink.value) waTab.location.href = bookedWaLink.value
 }
 
 function restart() {
   booked.value = null
   coupon.value = null
   couponCode.value = ''
+  idea.value = ''
+  removePhoto()
   service.value = null
   slot.value = null
 }
 
-// WhatsApp pós-agendamento (opcional).
+// WhatsApp pós-agendamento. No orçamento é o passo final, com a ideia e a foto.
 const bookedWaLink = computed(() => {
-  if (!booked.value || !business.value.phone) return null
-  const msg = `Oi! Confirmei meu agendamento de ${booked.value.service.name} para ${formatDateTime(booked.value.starts_at, tz.value)}.`
+  const b = booked.value
+  if (!b || !business.value.phone) return null
+  const when = formatDateTime(b.starts_at, tz.value)
+  if (!b.service.quote) {
+    return waLink(business.value.phone, `Oi! Confirmei meu agendamento de ${b.service.name} para ${when}.`)
+  }
+  const msg = [
+    `Oi! Quero um orçamento de ${b.service.name}.`,
+    `Dia que quero fazer: ${when}`,
+    b.idea && `Minha ideia: ${b.idea}`,
+    b.photo && `Foto de referência: ${b.photo}`,
+    `Nome: ${customer.value.name}`,
+  ].filter(Boolean).join('\n')
   return waLink(business.value.phone, msg)
 })
 
@@ -256,7 +327,42 @@ async function confirmReschedule() {
     <!-- ============ AGENDAR ============ -->
     <template v-if="tab === 'agendar'">
       <!-- Sucesso -->
-      <div v-if="booked" class="card glow booking-done">
+      <div v-if="booked && booked.service.quote" class="card glow booking-done">
+        <div class="done-ico"><Icon name="whatsapp" /></div>
+        <h2 class="gradient-text">Falta só enviar no WhatsApp</h2>
+        <p class="muted" style="margin: 0">
+          Seu horário ficou reservado. Pra {{ business.name }} receber sua ideia e te passar o valor,
+          envie a mensagem que abrimos no WhatsApp.
+        </p>
+        <div class="summary">
+          <div class="summary-row">
+            <span class="label"><Icon name="scissors" />Serviço</span>
+            <span class="value">{{ booked.service.name }}</span>
+          </div>
+          <div class="summary-row">
+            <span class="label"><Icon name="calendar" />Quando</span>
+            <span class="value">{{ formatDateTime(booked.starts_at, tz) }}</span>
+          </div>
+          <div v-if="booked.idea" class="summary-row">
+            <span class="label"><Icon name="pencil" />Ideia</span>
+            <span class="value">{{ booked.idea }}</span>
+          </div>
+          <div class="summary-row total">
+            <span class="label">Valor</span>
+            <span class="value">{{ priceLabel(booked.service) }}</span>
+          </div>
+        </div>
+        <img v-if="booked.photo" :src="booked.photo" alt="Foto de referência" class="quote-photo" />
+        <div class="done-actions">
+          <a v-if="bookedWaLink" :href="bookedWaLink" target="_blank" rel="noopener" class="btn">
+            <Icon name="whatsapp" />Enviar no WhatsApp
+          </a>
+          <button class="btn secondary" @click="restart">Pedir outro orçamento</button>
+        </div>
+        <p class="muted" style="font-size: 0.82rem; margin: 16px 0 0">Ver, cancelar ou remarcar em "Meus agendamentos".</p>
+      </div>
+
+      <div v-else-if="booked" class="card glow booking-done">
         <div class="done-ico"><Icon name="check" /></div>
         <h2 class="gradient-text">Agendamento confirmado!</h2>
         <p class="muted" style="margin: 0">Tá tudo certo. Guardamos aqui embaixo e você pode conferir em "Meus agendamentos".</p>
@@ -312,7 +418,7 @@ async function confirmReschedule() {
                 <span v-if="s.description" class="desc">{{ s.description }}</span>
               </div>
               <div class="svc-meta">
-                <span class="svc-price">{{ money(s.price) }}</span>
+                <span class="svc-price">{{ priceLabel(s) }}</span>
                 <span class="svc-duration"><Icon name="clock" />{{ s.duration_min }} min</span>
               </div>
             </button>
@@ -403,7 +509,11 @@ async function confirmReschedule() {
               <span class="label"><Icon name="calendar" />Quando</span>
               <span class="value">{{ formatDateTime(slot.starts_at, tz) }}</span>
             </div>
-            <div class="summary-row total">
+            <div v-if="service.quote" class="summary-row total">
+              <span class="label">Valor</span>
+              <span class="value">{{ priceLabel(service) }}</span>
+            </div>
+            <div v-else class="summary-row total">
               <span class="label">Total</span>
               <span class="value">
                 <s v-if="coupon">{{ money(service.price) }}</s>{{ money(finalPrice) }}
@@ -476,7 +586,25 @@ async function confirmReschedule() {
                 <label>WhatsApp</label>
               </div>
             </div>
-            <div v-if="hasCoupons" class="field" style="margin-top: 12px">
+            <template v-if="service.quote">
+              <div class="field" style="margin-top: 12px">
+                <label>Sua ideia <small>{{ photo ? '(opcional)' : '' }}</small></label>
+                <textarea v-model="idea" rows="3" maxlength="800"
+                          placeholder="Ex.: rosa com o nome da minha filha, no antebraço, uns 15 cm" />
+              </div>
+              <div class="field">
+                <label>Foto de referência <small>(opcional)</small></label>
+                <div v-if="photoPreview" class="quote-pick">
+                  <img :src="photoPreview" alt="Foto de referência" />
+                  <button type="button" class="btn small secondary" @click="removePhoto">Trocar foto</button>
+                </div>
+                <label v-else class="btn secondary block quote-upload">
+                  <Icon name="image" />Escolher foto
+                  <input type="file" accept="image/*" hidden @change="pickPhoto" />
+                </label>
+              </div>
+            </template>
+            <div v-else-if="hasCoupons" class="field" style="margin-top: 12px">
               <label>Cupom de desconto <small>(opcional)</small></label>
               <div class="row">
                 <input v-model="couponCode" placeholder="Ex.: PROMO10" style="text-transform: uppercase" />
@@ -485,7 +613,11 @@ async function confirmReschedule() {
               <small v-if="coupon" style="color: var(--success)">{{ coupon.message }}</small>
               <small v-if="couponError" style="color: var(--danger)">{{ couponError }}</small>
             </div>
-            <button class="btn block" style="margin-top: 16px" :disabled="busy">
+            <button v-if="service.quote" class="btn block" style="margin-top: 16px" :disabled="busy || !business.phone">
+              <Icon v-if="!busy" name="whatsapp" style="width:18px;height:18px" />
+              {{ busy ? 'Enviando...' : 'Enviar pelo WhatsApp' }}
+            </button>
+            <button v-else class="btn block" style="margin-top: 16px" :disabled="busy">
               <Icon v-if="!busy" name="check" style="width:18px;height:18px" />
               {{ busy ? 'Confirmando...' : 'Confirmar agendamento' }}
             </button>

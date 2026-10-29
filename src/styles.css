@@ -678,6 +678,19 @@ th { font-size: 0.72rem; color: var(--muted); font-weight: 700; text-transform: 
 .booking-done .summary { max-width: 420px; margin: 18px auto 20px; text-align: left; }
 .booking-done .done-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 
+/* Orçamento: foto de referência */
+.quote-photo {
+  display: block; max-width: 220px; max-height: 220px; margin: 0 auto 20px;
+  border-radius: 14px; border: 1px solid var(--border); object-fit: cover;
+}
+.quote-pick { display: flex; align-items: center; gap: 12px; }
+.quote-pick img {
+  width: 88px; height: 88px; border-radius: 12px; object-fit: cover;
+  border: 1px solid var(--border);
+}
+.quote-upload { cursor: pointer; margin: 0; }
+.quote-upload svg { width: 16px; height: 16px; }
+
 /* ---------- LinkButtons: refinado ---------- */
 .link-rail {
   display: grid; gap: 8px;

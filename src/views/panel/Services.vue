@@ -9,7 +9,7 @@ const biz = useBusiness()
 const services = ref([])
 const error = ref('')
 const saved = ref('')
-const empty = () => ({ id: null, name: '', description: '', price: 0, duration_min: 30, active: true })
+const empty = () => ({ id: null, name: '', description: '', price: 0, duration_min: 30, active: true, quote: false })
 const form = ref(empty())
 const formEl = ref(null)
 
@@ -45,8 +45,8 @@ async function save() {
 }
 
 function edit(s) {
-  const { id, name, description, price, duration_min, active } = s
-  form.value = { id, name, description: description ?? '', price, duration_min, active }
+  const { id, name, description, price, duration_min, active, quote } = s
+  form.value = { id, name, description: description ?? '', price, duration_min, active, quote }
   saved.value = ''
   formEl.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
@@ -134,10 +134,16 @@ function focusNew() {
     </div>
 
     <div class="svc-form-foot">
-      <label class="svc-toggle">
-        <input v-model="form.active" type="checkbox" />
-        <span>Ativo (aparece no agendamento)</span>
-      </label>
+      <div class="svc-toggles">
+        <label class="svc-toggle">
+          <input v-model="form.active" type="checkbox" />
+          <span>Ativo (aparece no agendamento)</span>
+        </label>
+        <label class="svc-toggle" title="O cliente escolhe o horário, conta a ideia, pode mandar foto e termina enviando tudo pelo seu WhatsApp. O preço aparece como 'a partir de'.">
+          <input v-model="form.quote" type="checkbox" />
+          <span>Orçamento (cliente manda ideia e foto pelo WhatsApp)</span>
+        </label>
+      </div>
       <div class="svc-form-actions">
         <button v-if="form.id" type="button" class="btn secondary" @click="cancelEdit">Cancelar</button>
         <button class="btn">
@@ -172,13 +178,17 @@ function focusNew() {
             <h4 class="svc-item-name">{{ s.name }}</h4>
             <p v-if="s.description" class="svc-item-desc muted">{{ s.description }}</p>
           </div>
-          <span class="svc-item-price">{{ money(s.price) }}</span>
+          <span class="svc-item-price">{{ s.quote ? (Number(s.price) > 0 ? `a partir de ${money(s.price)}` : 'Sob orçamento') : money(s.price) }}</span>
         </div>
 
         <div class="svc-item-meta">
           <span class="svc-pill">
             <Icon name="clock" />
             {{ s.duration_min }} min
+          </span>
+          <span v-if="s.quote" class="svc-pill">
+            <Icon name="whatsapp" />
+            Orçamento
           </span>
           <span class="svc-pill status" :class="{ on: s.active }">
             <span class="dot" />
@@ -296,6 +306,7 @@ function focusNew() {
   gap: 14px; flex-wrap: wrap;
   margin-top: 8px;
 }
+.svc-toggles { display: flex; flex-direction: column; gap: 8px; }
 .svc-toggle {
   display: inline-flex; align-items: center; gap: 8px;
   color: var(--text); font-weight: 500; font-size: 0.92rem;
