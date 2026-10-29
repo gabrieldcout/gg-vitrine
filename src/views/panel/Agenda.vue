@@ -108,8 +108,31 @@ async function setStatus(a, status) {
 }
 
 // Agendamento manual (cliente ligou / chegou no balcão).
-const emptyForm = () => ({ customer_id: '', new_name: '', new_phone: '', service_id: '', professional_id: '', time: '09:00', notes: '', price: '', duration_min: '' })
+const emptyForm = () => ({
+  customer_id: '', new_name: '', new_phone: '', service_id: '',
+  professional_id: professionals.value.length === 1 ? professionals.value[0].id : '',
+  date: date.value, time: '', notes: '', price: '', duration_min: '',
+})
 const form = ref(emptyForm())
+const missing = ref([])   // o que falta preencher, mostrado perto do botão
+const saving = ref(false)
+
+// Abrir o formulário começa no dia que está aberto na Agenda.
+watch(showForm, (open) => { if (open) { form.value = emptyForm(); missing.value = [] } })
+
+function checkForm() {
+  const f = form.value
+  const m = []
+  if (!f.customer_id && !f.new_name.trim()) m.push('Nome do cliente (ou escolha um cliente da lista)')
+  if (!f.customer_id && f.new_phone && f.new_phone.replace(/\D/g, '').length < 10) m.push('WhatsApp com DDD (ou deixe em branco)')
+  if (!f.service_id) m.push('Serviço')
+  if (!f.professional_id) m.push(biz.business.staff_label)
+  if (!f.date) m.push('Dia')
+  if (!f.time) m.push('Horário')
+  if (f.duration_min !== '' && Number(f.duration_min) < 5) m.push('Duração (mínimo 5 min)')
+  missing.value = m
+  return !m.length
+}
 
 // Valor e duração vêm do serviço, mas dá pra ajustar (ex.: tatuagem com preço combinado).
 watch(() => form.value.service_id, (id) => {
@@ -119,9 +142,11 @@ watch(() => form.value.service_id, (id) => {
 
 async function createAppointment() {
   error.value = ''
+  if (!checkForm()) return
+  saving.value = true
   try {
     const service = services.value.find((s) => s.id === form.value.service_id)
-    const starts = zonedToUtc(date.value, form.value.time, tz.value)
+    const starts = zonedToUtc(form.value.date, form.value.time, tz.value)
     const duration = Number(form.value.duration_min) || service.duration_min
     const ends = new Date(starts.getTime() + duration * 60000)
     // Mostra quem está no caminho (com botão de remarcar) em vez do erro seco.
@@ -145,17 +170,23 @@ async function createAppointment() {
       throw new Error(err.message.includes('appointments_no_overlap')
         ? `${biz.business.staff_label} já tem um agendamento nesse horário.` : err.message)
     }
-    form.value = emptyForm()
+    const day = form.value.date
     showForm.value = false
-    loadAppointments()
+    notice.value = { text: `Agendado: ${service.name} em ${formatDateTime(starts.toISOString(), tz.value)}.` }
+    // Mostra o dia em que o agendamento entrou.
+    if (date.value !== day) date.value = day
+    else loadAppointments()
     loadLists()
   } catch (e) {
-    error.value = e.message
+    missing.value = [e.message]
+  } finally {
+    saving.value = false
   }
 }
 
 const conflicts = ref([])
-watch(() => [form.value.time, form.value.duration_min, form.value.professional_id, date.value], () => { conflicts.value = [] })
+watch(() => [form.value.time, form.value.duration_min, form.value.professional_id, form.value.date], () => { conflicts.value = [] })
+watch(form, () => { if (missing.value.length) checkForm() }, { deep: true })
 
 // Aviso depois de remarcar/pausar, com link opcional pro WhatsApp do cliente.
 const notice = ref(null)   // { text, wa }
@@ -168,7 +199,10 @@ function startMove(a) {
   error.value = ''
   notice.value = null
   moving.value = a
-  moveForm.value = { date: date.value, time: formatTime(a.starts_at, tz.value) }
+  moveForm.value = {
+    date: new Date(a.starts_at).toLocaleDateString('en-CA', { timeZone: tz.value }),
+    time: formatTime(a.starts_at, tz.value),
+  }
   setTimeout(() => document.getElementById('move-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
 }
 
@@ -373,10 +407,10 @@ async function removePause(p) {
   </form>
 
   <!-- Form de novo agendamento -->
-  <form v-if="showForm" class="appt-form" @submit.prevent="createAppointment">
+  <form v-if="showForm" class="appt-form" novalidate @submit.prevent="createAppointment">
     <div class="appt-form-head">
       <h3>Novo agendamento</h3>
-      <small class="muted">em {{ formatDate(zonedToUtc(date, '12:00', tz), tz) }}</small>
+      <small class="muted">Preencha quem, o quê, o dia e a hora.</small>
     </div>
     <div class="row">
       <div class="field">
@@ -387,28 +421,33 @@ async function removePause(p) {
         </select>
       </div>
       <template v-if="!form.customer_id">
-        <div class="field"><label>Nome</label><input v-model="form.new_name" required /></div>
-        <div class="field"><label>Telefone</label><input v-model="form.new_phone" type="tel" /></div>
+        <div class="field"><label>Nome</label><input v-model="form.new_name" placeholder="Nome do cliente" /></div>
+        <div class="field"><label>WhatsApp <small>(opcional)</small></label><input v-model="form.new_phone" type="tel" placeholder="(21) 99999-9999" /></div>
       </template>
     </div>
     <div class="row">
       <div class="field">
         <label>Serviço</label>
-        <select v-model="form.service_id" required>
+        <select v-model="form.service_id">
+          <option value="" disabled>Escolha o serviço</option>
           <option v-for="s in services" :key="s.id" :value="s.id">{{ s.name }} ({{ s.duration_min }} min)</option>
         </select>
       </div>
       <div class="field">
         <label>{{ biz.business.staff_label }}</label>
-        <select v-model="form.professional_id" required>
+        <select v-model="form.professional_id">
+          <option value="" disabled>Escolha</option>
           <option v-for="p in professionals" :key="p.id" :value="p.id">{{ p.name }}</option>
         </select>
       </div>
-      <div class="field"><label>Horário</label><input v-model="form.time" type="time" required /></div>
     </div>
     <div class="row">
-      <div class="field"><label>Valor (R$)</label><input v-model="form.price" type="number" min="0" step="0.01" required /></div>
-      <div class="field"><label>Duração (min)</label><input v-model="form.duration_min" type="number" min="5" max="720" step="5" required /></div>
+      <div class="field"><label>Dia</label><input v-model="form.date" type="date" /></div>
+      <div class="field"><label>Horário</label><input v-model="form.time" type="time" /></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Valor (R$)</label><input v-model="form.price" type="number" min="0" step="0.01" placeholder="Vem do serviço" /></div>
+      <div class="field"><label>Duração (min)</label><input v-model="form.duration_min" type="number" min="5" max="720" step="5" placeholder="Vem do serviço" /></div>
     </div>
     <div class="field"><label>Observações</label><input v-model="form.notes" placeholder="Opcional" /></div>
     <div v-if="conflicts.length" class="conflict-box">
@@ -424,7 +463,11 @@ async function removePause(p) {
       </div>
       <small class="muted">Remarque o cliente e depois toque em Agendar de novo.</small>
     </div>
-    <button class="btn">Agendar</button>
+    <div v-if="missing.length" class="missing-box">
+      <strong>Falta preencher:</strong>
+      <ul><li v-for="m in missing" :key="m">{{ m }}</li></ul>
+    </div>
+    <button class="btn" :disabled="saving">{{ saving ? 'Agendando...' : 'Agendar' }}</button>
   </form>
 
   <!-- Lista de agendamentos -->
@@ -462,7 +505,7 @@ async function removePause(p) {
             </td>
             <td>
               <strong>{{ a.customer?.name }}</strong>
-              <small v-if="a.customer?.phone" class="muted">{{ a.customer.phone }}</small>
+              <small v-if="a.customer?.phone"><a class="phone-link" :href="waLink(a.customer.phone)" target="_blank" rel="noopener" title="Chamar no WhatsApp">{{ a.customer.phone }}</a></small>
             </td>
             <td>
               <strong>{{ a.service?.name }}</strong>
@@ -514,7 +557,7 @@ async function removePause(p) {
           <div class="appt-meta">
             <span class="muted">{{ biz.business.staff_label }}: <strong style="color: var(--text)">{{ a.professional?.name }}</strong></span>
           </div>
-          <small v-if="a.customer?.phone" class="muted">{{ a.customer.phone }}</small>
+          <small v-if="a.customer?.phone"><a class="phone-link" :href="waLink(a.customer.phone)" target="_blank" rel="noopener" title="Chamar no WhatsApp">{{ a.customer.phone }}</a></small>
           <small v-if="a.notes" class="appt-notes">{{ a.notes }}</small>
           <a v-if="a.reference_url" :href="a.reference_url" target="_blank" rel="noopener" class="appt-ref">
             <img :src="a.reference_url" alt="Foto de referência" />
@@ -852,6 +895,14 @@ async function removePause(p) {
   display: grid; gap: 8px; margin: 4px 0 14px; padding: 12px 14px; border-radius: 12px;
   background: rgba(250, 204, 21, 0.08); border: 1px solid rgba(250, 204, 21, 0.35);
 }
+.missing-box {
+  margin: 4px 0 14px; padding: 12px 14px; border-radius: 12px;
+  background: rgba(248, 113, 113, 0.08); border: 1px solid rgba(248, 113, 113, 0.35);
+}
+.missing-box ul { margin: 6px 0 0; padding-left: 18px; }
+.missing-box li { font-size: 0.9rem; }
+.phone-link { color: var(--muted); text-decoration: underline dotted; }
+.phone-link:hover { color: var(--brand-ink); }
 .conflict-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .conflict-item .btn :deep(svg) { width: 14px; height: 14px; }
 

@@ -204,6 +204,11 @@ async function uploadPhoto() {
 async function confirm() {
   error.value = ''
   const quote = service.value.quote
+  // O número é o contato do estabelecimento caso a mensagem do WhatsApp não chegue.
+  if (customer.value.phone.replace(/\D/g, '').length < 10) {
+    error.value = 'Informe seu WhatsApp com DDD, ex.: (21) 99999-9999.'
+    return
+  }
   if (quote && !photo.value && idea.value.trim().length < 5) {
     error.value = 'Conte sua ideia ou mande uma foto de referência.'
     return
@@ -327,7 +332,7 @@ if (single.value) pickService(single.value)
       <button :class="{ on: tab === 'meus' }" @click="tab = 'meus'">Meus agendamentos</button>
     </div>
 
-    <div v-if="error" class="error">{{ error }}</div>
+    <div v-if="error && !(tab === 'agendar' && slot && !booked)" class="error">{{ error }}</div>
 
     <!-- ============ AGENDAR ============ -->
     <template v-if="tab === 'agendar'">
@@ -588,6 +593,7 @@ if (single.value) pickService(single.value)
                 </p>
               </form>
             </div>
+            <div v-if="error" class="error" style="margin: 14px 0 0">{{ error }}</div>
           </template>
 
           <form v-else @submit.prevent="confirm">
@@ -628,6 +634,7 @@ if (single.value) pickService(single.value)
               <small v-if="coupon" style="color: var(--success)">{{ coupon.message }}</small>
               <small v-if="couponError" style="color: var(--danger)">{{ couponError }}</small>
             </div>
+            <div v-if="error" class="error" style="margin: 14px 0 0">{{ error }}</div>
             <button v-if="service.quote" class="btn block" style="margin-top: 16px" :disabled="busy || !business.phone">
               <Icon v-if="!busy" name="whatsapp" style="width:18px;height:18px" />
               {{ busy ? 'Enviando...' : 'Enviar pelo WhatsApp' }}
