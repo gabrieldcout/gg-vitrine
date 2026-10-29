@@ -16,6 +16,8 @@ const dragOver = ref(false)
 const newPassword = ref('')
 const showPassword = ref(false)
 const fileInput = ref(null)
+const coverInput = ref(null)
+const coverUploading = ref(false)
 
 // Paleta completa: cada linha é uma cor, do tom mais claro ao mais escuro.
 const PALETTE = [
@@ -64,7 +66,7 @@ onMounted(() => {
   const b = biz.business
   form.value = {
     name: b.name, category: b.category, description: b.description, phone: b.phone,
-    address: b.address, primary_color: b.primary_color, logo_url: b.logo_url,
+    address: b.address, primary_color: b.primary_color, logo_url: b.logo_url, cover_url: b.cover_url,
     slot_interval_min: b.slot_interval_min, staff_label: b.staff_label,
   }
 })
@@ -115,6 +117,23 @@ function onFileChange(event) {
 function onDrop(event) {
   dragOver.value = false
   uploadLogoFile(event.dataTransfer.files?.[0])
+}
+
+// Foto de capa: aparece no topo da vitrine, atrás da logo.
+async function onCoverChange(event) {
+  const file = event.target.files?.[0]
+  if (event.target) event.target.value = ''
+  if (!file) return
+  if (!/^image\/(png|jpe?g|webp)$/.test(file.type)) { error.value = 'A capa precisa ser PNG, JPG ou WEBP.'; return }
+  coverUploading.value = true
+  error.value = ''
+  const small = await shrinkImage(file, { max: 1600, quality: 0.85 })
+  const path = `${biz.business.id}/cover-${Date.now()}.${small.ext}`
+  const { error: err } = await supabase.storage.from('logos').upload(path, small.file)
+  coverUploading.value = false
+  if (err) { error.value = err.message; return }
+  form.value.cover_url = supabase.storage.from('logos').getPublicUrl(path).data.publicUrl
+  msg.value = 'Capa carregada. Toque em Salvar pra ela ir pra vitrine.'
 }
 
 function removeLogo() {
@@ -194,6 +213,18 @@ async function changePassword() {
         <h3>Identidade visual</h3>
         <small class="muted">Logo e cor principal — definem o visual da sua vitrine.</small>
       </div>
+    </div>
+
+    <div class="pf-cover">
+      <input ref="coverInput" type="file" accept="image/png,image/jpeg,image/webp" hidden @change="onCoverChange" />
+      <button type="button" class="pf-cover-preview" :class="{ filled: form.cover_url }"
+              :style="form.cover_url ? { backgroundImage: `url(${form.cover_url})` } : null"
+              @click="coverInput?.click()">
+        <span v-if="coverUploading">Enviando...</span>
+        <span v-else-if="!form.cover_url"><Icon name="image" /> Enviar foto de capa <small>(aparece no topo da vitrine)</small></span>
+        <span v-else class="pf-cover-change"><Icon name="camera" /> Trocar capa</span>
+      </button>
+      <button v-if="form.cover_url" type="button" class="link-btn" @click="form.cover_url = null">Remover capa</button>
     </div>
 
     <div class="pf-brand-grid">
@@ -537,6 +568,16 @@ async function changePassword() {
   position: relative;
   width: 100%; height: 100%;
 }
+.pf-cover { display: grid; gap: 6px; margin-bottom: 16px; justify-items: start; }
+.pf-cover-preview {
+  width: 100%; height: 140px; border-radius: 16px; cursor: pointer;
+  display: grid; place-items: center; font: inherit; color: var(--muted);
+  background: var(--surface) center 40% / cover no-repeat; border: 1px dashed var(--border);
+}
+.pf-cover-preview.filled { border-style: solid; }
+.pf-cover-preview span { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.pf-cover-preview :deep(svg) { width: 16px; height: 16px; }
+.pf-cover-change { padding: 6px 12px; border-radius: 999px; background: rgba(0, 0, 0, 0.55); color: #fff; }
 .pf-logo { width: 100%; height: 100%; object-fit: cover; display: block; }
 .pf-logo-remove {
   position: absolute; right: 8px; top: 8px;

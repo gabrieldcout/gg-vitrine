@@ -75,7 +75,8 @@ onBeforeUnmount(() => io?.disconnect())
 
   <div v-else-if="business" :style="brandStyle" style="min-height: 100vh">
     <header class="biz-hero rich">
-      <div class="biz-cover">
+      <div class="biz-cover" :class="{ 'has-photo': business.cover_url }">
+        <img v-if="business.cover_url" :src="business.cover_url" alt="" class="biz-cover-photo" />
         <div v-if="business.live" class="biz-live-pill" :class="{ closed: !storeOpen }">
           <span class="dot" />
           <span>{{ !storeOpen ? (isQueue ? 'Fila fechada agora' : 'Fechado agora') : isMenu ? 'Pedidos online' : isQueue ? 'Fila online' : 'Agendando online' }}</span>
