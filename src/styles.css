@@ -200,11 +200,6 @@ th { font-size: 0.72rem; color: var(--muted); font-weight: 700; text-transform: 
 /* ---------- Marca ---------- */
 .logo { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.15rem; color: var(--text); }
 .logo:hover { color: var(--text); }
-.logo-mark {
-  width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; flex-shrink: 0;
-  background: linear-gradient(140deg, #3b82f6, #1d4ed8); box-shadow: 0 0 18px rgba(59, 130, 246, 0.45);
-}
-.logo-mark svg { width: 20px; height: 20px; }
 
 /* ---------- Topo das páginas públicas ---------- */
 .topnav {
@@ -292,8 +287,7 @@ th { font-size: 0.72rem; color: var(--muted); font-weight: 700; text-transform: 
 
 .powered { display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 40px; font-size: 0.85rem; }
 .powered .logo { font-size: 0.95rem; }
-.powered .logo-mark { width: 26px; height: 26px; border-radius: 8px; }
-.powered .logo-mark svg { width: 15px; height: 15px; }
+.powered .logo-mark { height: 24px !important; }
 
 .stars { display: inline-flex; gap: 2px; color: #fbbf24; }
 .stars svg { width: 16px; height: 16px; }
