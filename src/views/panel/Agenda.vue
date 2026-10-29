@@ -21,6 +21,7 @@ const setup = ref(null)   // pendências de configuração que impedem o agendam
 
 // Rótulo humano do dia atual ("Hoje · Qua, 10 de abril" etc).
 const dayLabel = computed(() => {
+  if (upcoming.value) return 'Próximos agendamentos'
   if (!date.value) return ''
   const today = todayISO(tz.value)
   const prefix = date.value === today ? 'Hoje · ' :
@@ -52,6 +53,8 @@ function reminder(a) {
     `*${a.service?.name}* ${formatDateTime(a.starts_at, tz.value)} com ${a.professional?.name}. Até lá!`)
 }
 
+const shortDay = (iso) => formatDate(iso, tz.value, { weekday: 'short', day: '2-digit', month: '2-digit' }).replace('.', '')
+
 const STATUS_BADGE = { scheduled: '', confirmed: 'green', completed: 'green', canceled: 'red', no_show: 'yellow' }
 
 const visible = computed(() => appointments.value.filter((a) =>
@@ -61,7 +64,18 @@ const dayTotal = computed(() => visible.value
   .filter((a) => a.status !== 'canceled' && a.status !== 'no_show')
   .reduce((sum, a) => sum + Number(a.price), 0))
 
+// "day" = um dia; "upcoming" = todos os próximos (de agora em diante).
+const mode = ref('day')
+const upcoming = computed(() => mode.value === 'upcoming')
+
 async function loadAppointments() {
+  if (upcoming.value) {
+    appointments.value = unwrap(await supabase.from('appointments')
+      .select('*, customer:customers(name, phone), service:services(name), professional:professionals(name)')
+      .eq('business_id', biz.business.id).gte('ends_at', new Date().toISOString())
+      .neq('status', 'canceled').order('starts_at').limit(300))
+    return
+  }
   const from = zonedToUtc(date.value, '00:00', tz.value).toISOString()
   const to = zonedToUtc(addDaysISO(date.value, 1), '00:00', tz.value).toISOString()
   appointments.value = unwrap(await supabase.from('appointments')
@@ -97,7 +111,7 @@ async function checkSetup() {
 }
 
 onMounted(() => { loadAppointments(); loadLists(); checkSetup() })
-watch(date, loadAppointments)
+watch([date, mode], loadAppointments)
 
 async function setStatus(a, status) {
   error.value = ''
@@ -174,7 +188,7 @@ async function createAppointment() {
     showForm.value = false
     notice.value = { text: `Agendado: ${service.name} em ${formatDateTime(starts.toISOString(), tz.value)}.` }
     // Mostra o dia em que o agendamento entrou.
-    if (date.value !== day) date.value = day
+    if (!upcoming.value && date.value !== day) date.value = day
     else loadAppointments()
     loadLists()
   } catch (e) {
@@ -277,12 +291,12 @@ async function removePause(p) {
       <h1>{{ dayLabel }}</h1>
     </div>
     <div class="agenda-header-actions">
-      <button v-if="visible.length" class="btn secondary agenda-cta" type="button"
+      <button v-if="visible.length && !upcoming" class="btn secondary agenda-cta" type="button"
               @click="printDay(visible, biz.business, dayLabel, dayTotal)">
         <Icon name="printer" />
         Imprimir dia
       </button>
-      <button v-if="canPause" class="btn secondary agenda-cta" type="button" @click="showPause = !showPause">
+      <button v-if="canPause && !upcoming" class="btn secondary agenda-cta" type="button" @click="showPause = !showPause">
         <Icon name="ban" />
         {{ showPause ? 'Fechar' : 'Pausar agendamentos' }}
       </button>
@@ -295,7 +309,11 @@ async function removePause(p) {
 
   <!-- Barra de controles (dia + filtro) -->
   <div class="agenda-controls">
-    <div class="date-nav">
+    <div class="mode-switch" role="tablist">
+      <button type="button" :class="{ on: !upcoming }" @click="mode = 'day'">Dia</button>
+      <button type="button" :class="{ on: upcoming }" @click="mode = 'upcoming'">Próximos</button>
+    </div>
+    <div v-if="!upcoming" class="date-nav">
       <button class="date-arrow" type="button" aria-label="Dia anterior" @click="date = addDaysISO(date, -1)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
       </button>
@@ -328,7 +346,7 @@ async function removePause(p) {
       <strong>{{ dayStats.completed }}</strong>
     </div>
     <div class="day-stat accent">
-      <small>Previsto no dia</small>
+      <small>{{ upcoming ? 'Previsto' : 'Previsto no dia' }}</small>
       <strong class="gradient-text">{{ money(dayTotal) }}</strong>
     </div>
   </div>
@@ -366,7 +384,7 @@ async function removePause(p) {
   </div>
 
   <!-- Pausar agendamentos neste dia -->
-  <form v-if="showPause" class="appt-form" @submit.prevent="addPause">
+  <form v-if="showPause && !upcoming" class="appt-form" @submit.prevent="addPause">
     <div class="appt-form-head">
       <h3>Pausar agendamentos</h3>
       <small class="muted">em {{ formatDate(zonedToUtc(date, '12:00', tz), tz) }} · a vitrine não oferece esse período</small>
@@ -378,7 +396,7 @@ async function removePause(p) {
     </div>
     <button class="btn"><Icon name="ban" />Pausar</button>
   </form>
-  <div v-if="pauses.length" class="pause-list">
+  <div v-if="pauses.length && !upcoming" class="pause-list">
     <div v-for="p in pauses" :key="p.id" class="pause-item">
       <Icon name="ban" />
       <span>
@@ -478,7 +496,7 @@ async function removePause(p) {
         <div class="empty-icon-ring" />
         <div class="empty-icon-core"><Icon name="calendar" /></div>
       </div>
-      <h3>Nenhum agendamento neste dia</h3>
+      <h3>{{ upcoming ? 'Nenhum agendamento pela frente' : 'Nenhum agendamento neste dia' }}</h3>
       <p class="muted">
         Que tal divulgar seu link pra lotar a agenda? Seus clientes marcam direto pelo celular, sem você precisar atender.
       </p>
@@ -500,6 +518,7 @@ async function removePause(p) {
         <tbody>
           <tr v-for="a in visible" :key="a.id" :class="{ canceled: a.status === 'canceled' }">
             <td class="col-time">
+              <small v-if="upcoming" class="appt-day">{{ shortDay(a.starts_at) }}</small>
               <strong>{{ formatTime(a.starts_at, tz) }}</strong>
               <small class="muted">até {{ formatTime(a.ends_at, tz) }}</small>
             </td>
@@ -541,6 +560,7 @@ async function removePause(p) {
     <div v-if="visible.length" class="appt-cards">
       <article v-for="a in visible" :key="`m-${a.id}`" class="appt-card" :class="{ canceled: a.status === 'canceled' }">
         <div class="appt-time">
+          <small v-if="upcoming" class="appt-day">{{ shortDay(a.starts_at) }}</small>
           <strong>{{ formatTime(a.starts_at, tz) }}</strong>
           <small>{{ formatTime(a.ends_at, tz) }}</small>
         </div>
@@ -603,6 +623,16 @@ async function removePause(p) {
 /* =====================================================================
    Controles (navegador de dia + filtro)
    ===================================================================== */
+.mode-switch {
+  display: inline-flex; padding: 4px; gap: 2px; border-radius: 999px;
+  background: var(--surface); border: 1px solid var(--border);
+}
+.mode-switch button {
+  padding: 7px 16px; border-radius: 999px; border: none; cursor: pointer;
+  background: transparent; color: var(--muted); font: inherit; font-weight: 600; font-size: 0.88rem;
+}
+.mode-switch button.on { background: var(--brand-soft); color: var(--brand-ink); }
+.appt-day { display: block; font-weight: 700; text-transform: capitalize; color: var(--brand-ink) !important; }
 .agenda-controls {
   display: flex; align-items: center; gap: 10px;
   flex-wrap: wrap;

@@ -363,6 +363,10 @@ if (single.value) pickService(single.value)
           </div>
         </div>
         <img v-if="booked.photo" :src="booked.photo" alt="Foto de referência" class="quote-photo" />
+        <div class="action-needed" style="max-width: 420px; margin: 0 auto 16px">
+          <Icon name="whatsapp" />
+          <span><strong>Ação necessária</strong>Envie a mensagem no WhatsApp. Sem isso, {{ business.name }} não recebe sua ideia nem a foto.</span>
+        </div>
         <div class="done-actions">
           <a v-if="bookedWaLink" :href="bookedWaLink" target="_blank" rel="noopener" class="btn">
             <Icon name="whatsapp" />Enviar no WhatsApp
@@ -478,6 +482,10 @@ if (single.value) pickService(single.value)
           <div class="step-head">
             <span class="step-chip"><span class="n">{{ professionalsForService.length > 1 ? 3 : 2 }}</span>Data e horário</span>
             <h3>Quando fica bom pra você?</h3>
+          </div>
+          <div v-if="!slot" class="action-needed" style="margin: 0 0 12px">
+            <Icon name="bell" />
+            <span><strong>Ação necessária</strong>Escolha o dia e toque em um horário livre pra continuar.</span>
           </div>
           <div class="day-strip">
             <button
@@ -633,6 +641,10 @@ if (single.value) pickService(single.value)
               </div>
               <small v-if="coupon" style="color: var(--success)">{{ coupon.message }}</small>
               <small v-if="couponError" style="color: var(--danger)">{{ couponError }}</small>
+            </div>
+            <div v-if="service.quote" class="action-needed">
+              <Icon name="whatsapp" />
+              <span><strong>Ação necessária</strong>Ao tocar no botão, o WhatsApp abre com sua mensagem pronta. Toque em <b>enviar</b> lá pra {{ business.name }} receber seu pedido.</span>
             </div>
             <div v-if="error" class="error" style="margin: 14px 0 0">{{ error }}</div>
             <button v-if="service.quote" class="btn block" style="margin-top: 16px" :disabled="busy || !business.phone">
