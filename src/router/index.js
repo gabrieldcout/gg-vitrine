@@ -27,6 +27,7 @@ const routes = [
       { path: 'avaliacoes', component: () => import('@/views/panel/Reviews.vue') },
       { path: 'fidelidade', component: () => import('@/views/panel/Loyalty.vue') },
       { path: 'cupons', component: () => import('@/views/panel/Coupons.vue') },
+      { path: 'promocao', component: () => import('@/views/panel/Promo.vue') },
       { path: 'lembretes', component: () => import('@/views/panel/Reminders.vue') },
       { path: 'divulgar', component: () => import('@/views/panel/Share.vue') },
       { path: 'perfil', component: () => import('@/views/panel/Profile.vue') },

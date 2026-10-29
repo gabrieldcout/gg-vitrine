@@ -19,6 +19,7 @@ export const PANEL_NAV = [
   { to: '/painel/avaliacoes', label: 'Avaliações', icon: 'star', feature: 'avaliacoes' },
   { to: '/painel/fidelidade', label: 'Fidelidade', icon: 'gift', feature: 'fidelidade', kinds: ['agenda', 'cardapio'] },
   { to: '/painel/cupons', label: 'Cupons', icon: 'tag', feature: 'cupons', kinds: ['agenda', 'cardapio'] },
+  { to: '/painel/promocao', label: 'Promoção', icon: 'sparkles' },
   { to: '/painel/divulgar', label: 'Divulgar', icon: 'qr' },
   { to: '/painel/tutorial', label: 'Tutorial', icon: 'sparkles', kinds: ['agenda'] },
   { to: '/painel/financeiro', label: 'Financeiro', icon: 'chart' },

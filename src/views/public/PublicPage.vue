@@ -8,6 +8,7 @@ import { APP_NAME } from '@/config/brand'
 import AppLogo from '@/components/AppLogo.vue'
 import Icon from '@/components/Icon.vue'
 import LinkButtons from '@/components/public/LinkButtons.vue'
+import PromoBanner from '@/components/public/PromoBanner.vue'
 import GallerySection from '@/components/public/GallerySection.vue'
 import ReviewsSection from '@/components/public/ReviewsSection.vue'
 import LoyaltySection from '@/components/public/LoyaltySection.vue'
@@ -110,6 +111,10 @@ onBeforeUnmount(() => io?.disconnect())
     <main class="container pub-main" :class="{ 'has-sticky': showSticky }">
       <div data-pub-reveal class="pub-reveal">
         <LinkButtons :business="business" />
+      </div>
+
+      <div v-if="business.live && business.promo" class="pub-section" data-pub-reveal>
+        <PromoBanner :promo="business.promo" :timezone="business.timezone" />
       </div>
 
       <section v-if="isMenu" id="pedir" class="pub-section space" data-pub-reveal>
