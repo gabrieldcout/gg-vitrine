@@ -257,7 +257,7 @@ const bookedWaLink = computed(() => {
     return waLink(business.value.phone, `Oi! Confirmei meu agendamento de ${b.service.name} para ${when}.`)
   }
   const msg = [
-    `Oi! Quero um orçamento de ${b.service.name}.`,
+    /orçamento/i.test(b.service.name) ? 'Oi! Quero um orçamento.' : `Oi! Quero um orçamento de ${b.service.name}.`,
     `Dia que quero fazer: ${when}`,
     b.idea && `Minha ideia: ${b.idea}`,
     b.photo && `Foto de referência: ${b.photo}`,
@@ -348,7 +348,7 @@ if (business.value.services.length === 1) pickService(business.value.services[0]
             <span class="value">{{ formatDateTime(booked.starts_at, tz) }}</span>
           </div>
           <div v-if="booked.idea" class="summary-row">
-            <span class="label"><Icon name="pencil" />Ideia</span>
+            <span class="label"><Icon name="pencil" />O que você quer</span>
             <span class="value">{{ booked.idea }}</span>
           </div>
           <div class="summary-row total">
@@ -592,9 +592,9 @@ if (business.value.services.length === 1) pickService(business.value.services[0]
             </div>
             <template v-if="service.quote">
               <div class="field" style="margin-top: 12px">
-                <label>Sua ideia <small>{{ photo ? '(opcional)' : '' }}</small></label>
+                <label>Conte mais ou menos o que você quer <small>{{ photo ? '(opcional)' : '' }}</small></label>
                 <textarea v-model="idea" rows="3" maxlength="800"
-                          placeholder="Ex.: rosa com o nome da minha filha, no antebraço, uns 15 cm" />
+                          placeholder="Ex.: o desenho, o tamanho, o local e algum detalhe importante" />
               </div>
               <div class="field">
                 <label>Foto de referência <small>(opcional)</small></label>
