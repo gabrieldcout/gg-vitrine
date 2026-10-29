@@ -340,7 +340,9 @@ async function changePassword() {
       </div>
       <div class="ff">
         <select id="pf-slot" v-model.number="form.slot_interval_min">
-          <option v-for="m in [10, 15, 20, 30, 45, 60]" :key="m" :value="m">A cada {{ m }} min</option>
+          <option v-for="m in [10, 15, 20, 30, 45, 60, 90, 120]" :key="m" :value="m">
+            A cada {{ m < 60 ? `${m} min` : m === 60 ? '1 hora' : m === 90 ? '1h30' : '2 horas' }}
+          </option>
         </select>
         <label for="pf-slot">Intervalo da agenda</label>
       </div>
