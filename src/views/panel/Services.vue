@@ -9,7 +9,7 @@ const biz = useBusiness()
 const services = ref([])
 const error = ref('')
 const saved = ref('')
-const empty = () => ({ id: null, name: '', description: '', price: 0, duration_min: 30, active: true, quote: false })
+const empty = () => ({ id: null, name: '', description: '', price: 0, duration_min: 30, active: true, quote: false, online: true })
 const form = ref(empty())
 const formEl = ref(null)
 
@@ -45,8 +45,8 @@ async function save() {
 }
 
 function edit(s) {
-  const { id, name, description, price, duration_min, active, quote } = s
-  form.value = { id, name, description: description ?? '', price, duration_min, active, quote }
+  const { id, name, description, price, duration_min, active, quote, online } = s
+  form.value = { id, name, description: description ?? '', price, duration_min, active, quote, online }
   saved.value = ''
   formEl.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
@@ -137,7 +137,11 @@ function focusNew() {
       <div class="svc-toggles">
         <label class="svc-toggle">
           <input v-model="form.active" type="checkbox" />
-          <span>Ativo (aparece no agendamento)</span>
+          <span>Ativo</span>
+        </label>
+        <label class="svc-toggle" title="Desmarcado, o serviço some da vitrine e só dá pra lançar pelo agendamento manual da Agenda.">
+          <input v-model="form.online" type="checkbox" />
+          <span>Aparece na vitrine (desmarque pra usar só no agendamento manual)</span>
         </label>
         <label class="svc-toggle" title="O cliente escolhe o horário, conta a ideia, pode mandar foto e termina enviando tudo pelo seu WhatsApp. O preço aparece como 'a partir de'.">
           <input v-model="form.quote" type="checkbox" />
@@ -185,6 +189,10 @@ function focusNew() {
           <span class="svc-pill">
             <Icon name="clock" />
             {{ s.duration_min }} min
+          </span>
+          <span v-if="!s.online" class="svc-pill">
+            <Icon name="ban" />
+            Só no painel
           </span>
           <span v-if="s.quote" class="svc-pill">
             <Icon name="whatsapp" />

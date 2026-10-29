@@ -108,8 +108,14 @@ async function setStatus(a, status) {
 }
 
 // Agendamento manual (cliente ligou / chegou no balcão).
-const emptyForm = () => ({ customer_id: '', new_name: '', new_phone: '', service_id: '', professional_id: '', time: '09:00', notes: '' })
+const emptyForm = () => ({ customer_id: '', new_name: '', new_phone: '', service_id: '', professional_id: '', time: '09:00', notes: '', price: '', duration_min: '' })
 const form = ref(emptyForm())
+
+// Valor e duração vêm do serviço, mas dá pra ajustar (ex.: tatuagem com preço combinado).
+watch(() => form.value.service_id, (id) => {
+  const s = services.value.find((x) => x.id === id)
+  if (s) Object.assign(form.value, { price: s.price, duration_min: s.duration_min })
+})
 
 async function createAppointment() {
   error.value = ''
@@ -122,11 +128,12 @@ async function createAppointment() {
         .select('id').single()).id
     }
     const starts = zonedToUtc(date.value, form.value.time, tz.value)
-    const ends = new Date(starts.getTime() + service.duration_min * 60000)
+    const duration = Number(form.value.duration_min) || service.duration_min
+    const ends = new Date(starts.getTime() + duration * 60000)
     const { error: err } = await supabase.from('appointments').insert({
       business_id: biz.business.id, customer_id: customerId, service_id: service.id,
       professional_id: form.value.professional_id, starts_at: starts.toISOString(), ends_at: ends.toISOString(),
-      price: service.price, notes: form.value.notes || null, status: 'confirmed',
+      price: Number(form.value.price) || 0, notes: form.value.notes || null, status: 'confirmed',
     })
     if (err) {
       throw new Error(err.message.includes('appointments_no_overlap')
@@ -259,6 +266,10 @@ async function createAppointment() {
         </select>
       </div>
       <div class="field"><label>Horário</label><input v-model="form.time" type="time" required /></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Valor (R$)</label><input v-model="form.price" type="number" min="0" step="0.01" required /></div>
+      <div class="field"><label>Duração (min)</label><input v-model="form.duration_min" type="number" min="5" max="720" step="5" required /></div>
     </div>
     <div class="field"><label>Observações</label><input v-model="form.notes" placeholder="Opcional" /></div>
     <button class="btn">Agendar</button>
