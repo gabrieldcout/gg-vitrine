@@ -65,7 +65,10 @@ const dayTotal = computed(() => visible.value
   .reduce((sum, a) => sum + Number(a.price), 0))
 
 // "day" = um dia; "upcoming" = todos os próximos (de agora em diante).
-const mode = ref('day')
+// Abre em "Próximos" e lembra a última escolha neste navegador.
+const MODE_KEY = 'agenda-mode'
+const mode = ref((() => { try { return localStorage.getItem(MODE_KEY) || 'upcoming' } catch { return 'upcoming' } })())
+watch(mode, (m) => { try { localStorage.setItem(MODE_KEY, m) } catch { /* sem storage */ } })
 const upcoming = computed(() => mode.value === 'upcoming')
 
 async function loadAppointments() {
@@ -310,8 +313,8 @@ async function removePause(p) {
   <!-- Barra de controles (dia + filtro) -->
   <div class="agenda-controls">
     <div class="mode-switch" role="tablist">
-      <button type="button" :class="{ on: !upcoming }" @click="mode = 'day'">Dia</button>
-      <button type="button" :class="{ on: upcoming }" @click="mode = 'upcoming'">Próximos</button>
+      <button type="button" :class="{ on: upcoming }" @click="mode = 'upcoming'"><Icon name="calendar" />Próximos agendamentos</button>
+      <button type="button" :class="{ on: !upcoming }" @click="mode = 'day'"><Icon name="clock" />Ver por dia</button>
     </div>
     <div v-if="!upcoming" class="date-nav">
       <button class="date-arrow" type="button" aria-label="Dia anterior" @click="date = addDaysISO(date, -1)">
@@ -628,10 +631,16 @@ async function removePause(p) {
   background: var(--surface); border: 1px solid var(--border);
 }
 .mode-switch button {
-  padding: 7px 16px; border-radius: 999px; border: none; cursor: pointer;
-  background: transparent; color: var(--muted); font: inherit; font-weight: 600; font-size: 0.88rem;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 16px; border-radius: 999px; border: none; cursor: pointer;
+  background: transparent; color: var(--muted); font: inherit; font-weight: 700; font-size: 0.9rem;
 }
-.mode-switch button.on { background: var(--brand-soft); color: var(--brand-ink); }
+.mode-switch button :deep(svg) { width: 15px; height: 15px; }
+.mode-switch button.on { background: var(--brand); color: var(--brand-contrast); }
+@media (max-width: 640px) {
+  .mode-switch { width: 100%; }
+  .mode-switch button { flex: 1; justify-content: center; padding: 9px 8px; font-size: 0.84rem; }
+}
 .appt-day { display: block; font-weight: 700; text-transform: capitalize; color: var(--brand-ink) !important; }
 .agenda-controls {
   display: flex; align-items: center; gap: 10px;
