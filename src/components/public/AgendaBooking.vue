@@ -92,7 +92,6 @@ function clearService() {
   slot.value = null
   slots.value = []
 }
-
 // ---------------- Login do cliente (código por e-mail) ----------------
 const email = ref('')
 const code = ref('')
@@ -246,6 +245,7 @@ function restart() {
   removePhoto()
   service.value = null
   slot.value = null
+  if (business.value.services.length === 1) pickService(business.value.services[0])
 }
 
 // WhatsApp pós-agendamento. No orçamento é o passo final, com a ideia e a foto.
@@ -307,6 +307,10 @@ async function confirmReschedule() {
   slot.value = null
   loadMine()
 }
+
+// Serviço único (ex.: estúdio que só faz tatuagem): já vem escolhido.
+// Fica no fim pra o watch dos horários já existir e buscar os do dia.
+if (business.value.services.length === 1) pickService(business.value.services[0])
 </script>
 
 <template>
@@ -419,7 +423,7 @@ async function confirmReschedule() {
               </div>
               <div class="svc-meta">
                 <span class="svc-price">{{ priceLabel(s) }}</span>
-                <span class="svc-duration"><Icon name="clock" />{{ s.duration_min }} min</span>
+                <span v-if="!s.quote" class="svc-duration"><Icon name="clock" />{{ s.duration_min }} min</span>
               </div>
             </button>
           </div>
