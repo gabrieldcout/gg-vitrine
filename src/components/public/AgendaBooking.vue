@@ -308,9 +308,10 @@ async function confirmReschedule() {
   loadMine()
 }
 
-// Serviço único (ex.: estúdio que só faz tatuagem): já vem escolhido.
-// Fica no fim pra o watch dos horários já existir e buscar os do dia.
-if (business.value.services.length === 1) pickService(business.value.services[0])
+// Serviço único (ex.: estúdio que só faz tatuagem): já vem escolhido e não
+// dá pra desmarcar. Fica no fim pra o watch dos horários já existir.
+const single = computed(() => (business.value.services.length === 1 ? business.value.services[0] : null))
+if (single.value) pickService(single.value)
 </script>
 
 <template>
@@ -402,9 +403,19 @@ if (business.value.services.length === 1) pickService(business.value.services[0]
         <div class="card">
           <div class="step-head">
             <span class="step-chip"><span class="n">1</span>Serviço</span>
-            <h3>O que você quer agendar?</h3>
-            <p v-if="!service">Escolha abaixo pra ver os horários disponíveis.</p>
-            <p v-else>Toque pra trocar a qualquer momento.</p>
+            <template v-if="single && single.quote">
+              <h3>Solicite seu orçamento</h3>
+              <p>Escolha o dia, conte o que você quer e envie pelo WhatsApp.</p>
+            </template>
+            <template v-else-if="single">
+              <h3>Seu atendimento</h3>
+              <p>Escolha abaixo o dia e o horário.</p>
+            </template>
+            <template v-else>
+              <h3>O que você quer agendar?</h3>
+              <p v-if="!service">Escolha abaixo pra ver os horários disponíveis.</p>
+              <p v-else>Toque pra trocar a qualquer momento.</p>
+            </template>
           </div>
           <p v-if="!business.services.length" class="muted">Nenhum serviço disponível no momento.</p>
           <div v-else class="svc-grid">
@@ -414,7 +425,7 @@ if (business.value.services.length === 1) pickService(business.value.services[0]
               type="button"
               class="svc-card"
               :class="{ on: service?.id === s.id }"
-              @click="service?.id === s.id ? clearService() : pickService(s)"
+              @click="single ? null : service?.id === s.id ? clearService() : pickService(s)"
             >
               <div class="svc-icon"><Icon :name="iconFor()" /></div>
               <div class="svc-body">
