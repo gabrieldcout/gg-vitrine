@@ -38,3 +38,8 @@ function loadImage(file) {
     img.src = url
   })
 }
+
+// A galeria guarda fotos e vídeos na mesma tabela; o tipo sai da extensão.
+export function isVideo(url) {
+  return /\.(mp4|webm|mov|m4v)(\?|$)/i.test(url ?? '')
+}

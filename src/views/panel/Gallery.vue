@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { shrinkImage } from '@/lib/image'
+import { shrinkImage, isVideo } from '@/lib/image'
 import { supabase, unwrap } from '@/lib/supabase'
 import { useBusiness } from '@/lib/business'
 import Icon from '@/components/Icon.vue'
@@ -14,6 +14,7 @@ const uploading = ref(0)
 const dragover = ref(false)
 const fileInput = ref(null)
 const MAX = 40
+const MAX_VIDEO_MB = 50
 
 const atLimit = computed(() => photos.value.length >= MAX)
 const slotsLeft = computed(() => MAX - photos.value.length)
@@ -31,10 +32,15 @@ async function uploadFiles(fileList) {
   let ok = 0
   for (const file of files) {
     uploading.value++
-    const small = await shrinkImage(file, { max: 1400 })
-    if (small.file.size > 5 * 1024 * 1024) { uploading.value--; error.value = `"${file.name}" tem mais de 5 MB e foi ignorada.`; continue }
+    // Vídeo sobe como veio (sem compressão no navegador), com limite de tamanho.
+    const video = file.type.startsWith('video/')
+    if (video && file.size > MAX_VIDEO_MB * 1024 * 1024) {
+      uploading.value--; error.value = `"${file.name}" tem mais de ${MAX_VIDEO_MB} MB. Corte o vídeo ou envie um mais curto.`; continue
+    }
+    const small = video ? { file, ext: file.name.split('.').pop().toLowerCase() } : await shrinkImage(file, { max: 1400 })
+    if (!video && small.file.size > 5 * 1024 * 1024) { uploading.value--; error.value = `"${file.name}" tem mais de 5 MB e foi ignorada.`; continue }
     const path = `${biz.business.id}/gallery/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${small.ext}`
-    const { error: err } = await supabase.storage.from('logos').upload(path, small.file)
+    const { error: err } = await supabase.storage.from('logos').upload(path, small.file, video ? { contentType: file.type } : undefined)
     if (!err) {
       const url = supabase.storage.from('logos').getPublicUrl(path).data.publicUrl
       await supabase.from('gallery_photos').insert({ business_id: biz.business.id, url })
@@ -44,7 +50,7 @@ async function uploadFiles(fileList) {
     }
     uploading.value--
   }
-  if (ok) msg.value = ok === 1 ? '1 foto adicionada.' : `${ok} fotos adicionadas.`
+  if (ok) msg.value = ok === 1 ? '1 item adicionado à galeria.' : `${ok} itens adicionados à galeria.`
   load()
 }
 
@@ -66,9 +72,9 @@ async function saveCaption(p, caption) {
 }
 
 async function remove(p) {
-  if (!confirm('Remover esta foto?')) return
+  if (!confirm(isVideo(p.url) ? 'Remover este vídeo?' : 'Remover esta foto?')) return
   await supabase.from('gallery_photos').delete().eq('id', p.id)
-  msg.value = 'Foto removida.'
+  msg.value = 'Removido da galeria.'
   load()
 }
 
@@ -106,21 +112,21 @@ function openPicker() {
            @dragenter.prevent="dragover = true"
            @dragleave.prevent="dragover = false"
            @drop="onDrop">
-      <input ref="fileInput" type="file" accept="image/png,image/jpeg,image/webp" multiple
+      <input ref="fileInput" type="file" accept="image/png,image/jpeg,image/webp,video/mp4,video/webm,video/quicktime" multiple
              :disabled="atLimit" @change="onPick" />
       <div class="gl-drop-icon">
         <Icon :name="uploading > 0 ? 'image' : 'camera'" />
       </div>
       <div class="gl-drop-info">
-        <strong v-if="uploading > 0">Enviando {{ uploading === 1 ? '1 foto' : `${uploading} fotos` }}...</strong>
+        <strong v-if="uploading > 0">Enviando {{ uploading === 1 ? '1 arquivo' : `${uploading} arquivos` }}... (vídeo pode demorar)</strong>
         <strong v-else-if="atLimit">Você atingiu o limite de {{ MAX }} fotos</strong>
-        <strong v-else>Arraste fotos aqui ou clique pra escolher</strong>
-        <small v-if="!atLimit">PNG, JPG ou WEBP · fotos grandes são reduzidas sozinhas · faltam {{ slotsLeft }} slots</small>
+        <strong v-else>Arraste fotos e vídeos aqui ou clique pra escolher</strong>
+        <small v-if="!atLimit">Fotos PNG, JPG ou WEBP · vídeos MP4 ou MOV de até {{ MAX_VIDEO_MB }} MB · faltam {{ slotsLeft }} slots</small>
         <small v-else>Remova algumas pra enviar novas.</small>
       </div>
       <button v-if="!atLimit" type="button" class="btn" @click.prevent="openPicker">
         <Icon name="plus" />
-        Escolher fotos
+        Escolher fotos ou vídeos
       </button>
     </label>
 
@@ -144,8 +150,10 @@ function openPicker() {
       <div v-else class="gl-grid">
         <article v-for="p in photos" :key="p.id" class="gl-photo">
           <div class="gl-photo-img">
-            <img :src="p.url" alt="" loading="lazy" />
-            <button class="gl-photo-remove" aria-label="Remover foto" @click="remove(p)">
+            <video v-if="isVideo(p.url)" :src="`${p.url}#t=0.5`" muted playsinline preload="metadata" />
+            <img v-else :src="p.url" alt="" loading="lazy" />
+            <span v-if="isVideo(p.url)" class="gl-video-tag"><Icon name="play" />Vídeo</span>
+            <button class="gl-photo-remove" aria-label="Remover" @click="remove(p)">
               <Icon name="trash" />
             </button>
           </div>
@@ -158,6 +166,14 @@ function openPicker() {
 </template>
 
 <style scoped>
+.gl-photo-img video { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+.gl-video-tag {
+  position: absolute; left: 8px; bottom: 8px; display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px; border-radius: 999px; background: rgba(0, 0, 0, 0.65); color: #fff;
+  font-size: 0.72rem; font-weight: 700;
+}
+.gl-video-tag :deep(svg) { width: 11px; height: 11px; }
+
 /* ===== Header ===== */
 .gl-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .gl-eyebrow { display: inline-block; margin-bottom: 6px; }
