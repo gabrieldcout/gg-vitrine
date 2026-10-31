@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, provide, onMounted, watch } from 'vue'
+import { ref, computed, provide, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { supabase } from '@/lib/supabase'
 import { signOut, isPlatformAdmin } from '@/lib/session'
@@ -12,6 +12,7 @@ import AppLogo from '@/components/AppLogo.vue'
 import Icon from '@/components/Icon.vue'
 import BackButton from '@/components/BackButton.vue'
 import { navFor, homeFor, routeAllowed } from '@/lib/panel-nav'
+import { startAutoPrint } from '@/lib/auto-print'
 
 const route = useRoute()
 const router = useRouter()
@@ -69,7 +70,7 @@ const showShareBar = computed(() =>
 // de cada grupo segue o PANEL_NAV original.
 const NAV_GROUPS = [
   { title: 'Agenda', match: ['/painel', '/painel/fila', '/painel/servicos', '/painel/profissionais', '/painel/horarios', '/painel/clientes', '/painel/bloqueios'] },
-  { title: 'Loja', match: ['/painel/pedidos', '/painel/cardapio', '/painel/funcionamento'] },
+  { title: 'Loja', match: ['/painel/pedidos', '/painel/cardapio', '/painel/funcionamento', '/painel/impressao'] },
   { title: 'Divulgar', match: ['/painel/lembretes', '/painel/galeria', '/painel/avaliacoes', '/painel/fidelidade', '/painel/cupons', '/painel/divulgar'] },
   { title: 'Conta', match: ['/painel/tutorial', '/painel/financeiro', '/painel/perfil', '/painel/assinatura'] },
 ]
@@ -131,6 +132,15 @@ onMounted(async () => {
   enforceAccess()
   isAdmin.value = await isPlatformAdmin()
 })
+
+// Cardápio: imprime pedido novo com qualquer tela do painel aberta (se ligado
+// neste aparelho, em Impressão).
+let stopAutoPrint = null
+watch(() => biz.live && kind.value === 'cardapio', (on) => {
+  stopAutoPrint?.()
+  stopAutoPrint = on ? startAutoPrint(() => biz.business) : null
+}, { immediate: true })
+onUnmounted(() => stopAutoPrint?.())
 
 async function logout() {
   await signOut()

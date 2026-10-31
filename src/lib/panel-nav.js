@@ -13,6 +13,7 @@ export const PANEL_NAV = [
   { to: '/painel/pedidos', label: 'Pedidos', icon: 'bag', kinds: ['cardapio'] },
   { to: '/painel/cardapio', label: 'Produtos', icon: 'utensils', kinds: ['cardapio'] },
   { to: '/painel/funcionamento', label: 'Funcionamento', icon: 'clock', kinds: ['cardapio'] },
+  { to: '/painel/impressao', label: 'Impressão', icon: 'printer', kinds: ['cardapio'] },
 
   { to: '/painel/lembretes', label: 'Lembretes', icon: 'bell', feature: 'lembretes', kinds: ['agenda'] },
   { to: '/painel/galeria', label: 'Galeria', icon: 'image', feature: 'galeria' },

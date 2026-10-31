@@ -5,6 +5,7 @@ import { useBusiness } from '@/lib/business'
 import { money, formatTime, formatDate, todayISO, addDaysISO, zonedToUtc } from '@/lib/format'
 import { waLink } from '@/lib/whatsapp'
 import { printOrder } from '@/lib/print'
+import { autoPrintOn } from '@/lib/auto-print'
 import { alarmUrl } from '@/lib/alarm'
 import ManualOrder from '@/components/ManualOrder.vue'
 import SourceBadge from '@/components/SourceBadge.vue'
@@ -42,11 +43,8 @@ function manualSaved(order) {
 const pref = (key, def) => { try { const v = localStorage.getItem(key); return v === null ? def : v === '1' } catch { return def } }
 const setPref = (key, v) => { try { localStorage.setItem(key, v ? '1' : '0') } catch { /* sem armazenamento local */ } }
 const soundOn = ref(pref('gg-pedidos-som', true))
-const autoPrint = ref(pref('gg-pedidos-imprimir', false))
 const audioReady = ref(false)
-const showPrintHelp = ref(false)
 function toggleSound() { soundOn.value = !soundOn.value; setPref('gg-pedidos-som', soundOn.value); if (soundOn.value) enableSound() }
-function toggleAutoPrint() { autoPrint.value = !autoPrint.value; setPref('gg-pedidos-imprimir', autoPrint.value) }
 
 // Aceite automático: fica no banco (vale mesmo com o painel fechado). Só aparece
 // depois da migration 0022.
@@ -103,12 +101,6 @@ function notify(o) {
   } catch { /* sem notificação */ }
 }
 
-// Imprime um por vez (duas janelas de impressão juntas se atrapalham).
-let printQueue = Promise.resolve()
-function queuePrint(o) {
-  printQueue = printQueue.then(() => { printOrder(o, biz.business); return new Promise((r) => setTimeout(r, 2500)) })
-}
-
 let seen = null   // ids de pedido já vistos nesta tela
 function handleNew(list) {
   if (!seen) { seen = new Set(list.map((o) => o.id)); return }
@@ -118,7 +110,7 @@ function handleNew(list) {
   hasNew.value = true
   alarm()
   fresh.forEach(notify)
-  if (autoPrint.value) fresh.forEach(queuePrint)
+  // A impressão automática fica no layout do painel (lib/auto-print).
 }
 const hasNew = ref(false)
 
@@ -284,21 +276,11 @@ function customerLink(o) {
       <input type="checkbox" :checked="soundOn" @change="toggleSound" />
       <span><strong>Som e notificação de pedido novo</strong><small>Neste aparelho, com esta tela aberta.</small></span>
     </label>
-    <label class="opt">
-      <input type="checkbox" :checked="autoPrint" @change="toggleAutoPrint" />
-      <span><strong>Imprimir pedidos novos automaticamente</strong><small>Neste aparelho, com esta tela aberta.
-        <button type="button" class="link-btn" @click.prevent="showPrintHelp = !showPrintHelp">Imprimir sem a janela de confirmação</button></small></span>
-    </label>
-    <div v-if="showPrintHelp" class="print-help">
-      <p>O navegador sempre pergunta antes de imprimir, por segurança. Pra imprimir direto no computador do balcão:</p>
-      <ol>
-        <li>Deixe a impressora da comanda como <strong>impressora padrão</strong> do Windows.</li>
-        <li>Clique com o botão direito no atalho do <strong>Google Chrome</strong> e escolha <strong>Propriedades</strong>.</li>
-        <li>No campo <strong>Destino</strong>, no final (depois das aspas), acrescente um espaço e <code>--kiosk-printing</code>.</li>
-        <li>Feche todas as janelas do Chrome e abra de novo por esse atalho.</li>
-      </ol>
-      <p>Pronto: a comanda sai direto, sem perguntar, no botão Imprimir e na impressão automática.</p>
-    </div>
+    <RouterLink to="/painel/impressao" class="opt print-link">
+      <Icon name="printer" style="width: 18px; height: 18px" />
+      <span><strong>Impressão automática: {{ autoPrintOn ? 'ligada neste computador' : 'desligada' }}</strong>
+        <small>{{ autoPrintOn ? 'Pedido novo do site sai sozinho, com qualquer tela do painel aberta.' : 'Toque aqui pra configurar a impressora do balcão.' }}</small></span>
+    </RouterLink>
     <button v-if="soundOn && !audioReady" type="button" class="btn small sound-btn sound-off" @click="testSound">
       <Icon name="bell" style="width: 15px; height: 15px" />Som desativado: toque aqui pra ativar
     </button>
@@ -392,10 +374,6 @@ function customerLink(o) {
 .order-settings .opt strong { display: block; font-size: 0.92rem; }
 .order-settings .opt small { display: block; color: var(--muted); font-size: 0.8rem; margin-top: 2px; }
 .order-settings .link-btn { font-size: 0.8rem; padding: 0; }
-.print-help { font-size: 0.85rem; color: var(--silver); padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); }
-.print-help p { margin: 0 0 6px; }
-.print-help ol { margin: 0 0 6px; padding-left: 20px; display: grid; gap: 4px; }
-.print-help code { background: rgba(255, 255, 255, 0.08); padding: 1px 5px; border-radius: 5px; }
 .sound-btn { justify-self: start; }
 .sound-off { animation: pulse-sound 1.6s ease-in-out infinite; }
 @keyframes pulse-sound { 50% { box-shadow: 0 0 0 6px var(--brand-glow); } }
@@ -417,4 +395,5 @@ function customerLink(o) {
 .meta .wa-ok, .meta .wa-ok svg { color: #4ade80; }
 .meta .wa-missing { color: #fbbf24; font-weight: 600; }
 .meta .wa-missing svg { color: #fbbf24; }
+.order-settings .print-link { color: inherit; text-decoration: none; align-items: center; }
 </style>

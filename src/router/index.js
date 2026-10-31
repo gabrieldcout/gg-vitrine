@@ -23,6 +23,7 @@ const routes = [
       { path: 'fila', component: () => import('@/views/panel/Queue.vue') },
       { path: 'cardapio', component: () => import('@/views/panel/Menu.vue') },
       { path: 'funcionamento', component: () => import('@/views/panel/Store.vue') },
+      { path: 'impressao', component: () => import('@/views/panel/Printing.vue') },
       { path: 'galeria', component: () => import('@/views/panel/Gallery.vue') },
       { path: 'avaliacoes', component: () => import('@/views/panel/Reviews.vue') },
       { path: 'fidelidade', component: () => import('@/views/panel/Loyalty.vue') },
