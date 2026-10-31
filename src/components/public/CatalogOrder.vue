@@ -175,6 +175,29 @@ function markWhatsApp(id = placed.value?.id) {
   if (id) supabase.rpc('mark_order_whatsapp', { p_order: id }).then(() => {}, () => {})
 }
 
+// Mandar no WhatsApp é obrigatório: até tocar no botão, não dá pra fechar
+// nem fazer outro pedido, e sair da página pede confirmação. (Não tem como
+// saber se ele enviou mesmo, só que abriu a conversa.)
+const waSent = ref(false)
+const waNudge = ref(false)
+function sendWhatsApp() {
+  waSent.value = true
+  waNudge.value = false
+  markWhatsApp()
+}
+function nudgeWhatsApp() {
+  waNudge.value = false
+  requestAnimationFrame(() => { waNudge.value = true })
+}
+const mustSend = computed(() => !!placed.value && !!placedLink.value && !waSent.value)
+function onBeforeUnload(e) {
+  if (!mustSend.value) return
+  e.preventDefault()
+  e.returnValue = ''
+}
+window.addEventListener('beforeunload', onBeforeUnload)
+onUnmounted(() => window.removeEventListener('beforeunload', onBeforeUnload))
+
 // ---------------- Último pedido (evita pedido duplicado) ----------------
 // Fica guardado no celular do cliente, sem login: se ele voltar achando que
 // o pedido não foi, vê que já foi e pode só mandar no WhatsApp.
@@ -225,17 +248,21 @@ async function send() {
   })
   busy.value = false
   if (err) { error.value = err.message; return }
+  waSent.value = false
+  waNudge.value = false
   placed.value = data
   saveLast(data)
 }
 
 // Fechar a janela depois do pedido feito equivale a "fazer outro pedido".
 function closeSheet() {
-  if (placed.value) finish()
+  if (mustSend.value) nudgeWhatsApp()
+  else if (placed.value) finish()
   else checkoutOpen.value = false
 }
 
 function finish() {
+  if (mustSend.value) { nudgeWhatsApp(); return }
   cart.value = {}
   placed.value = null
   checkoutOpen.value = false
@@ -335,13 +362,20 @@ function scrollTo(id) {
             <div class="pix-key"><code>{{ pixKey }}</code><button type="button" class="btn small" @click="copyPix">{{ pixCopied ? 'Copiado!' : 'Copiar chave' }}</button></div>
           </div>
           <template v-if="placedLink">
-            <p class="muted">Falta só um passo: toque no botão pra mandar o pedido na conversa com a loja.</p>
-            <a class="btn large block wa-send" :href="placedLink" target="_blank" rel="noopener" @click="markWhatsApp">
-              <Icon name="whatsapp" style="width: 22px; height: 22px" />Enviar pedido no WhatsApp
+            <div v-if="!waSent" class="action-needed wa-required" :class="{ nudge: waNudge }" role="alert">
+              <Icon name="whatsapp" />
+              <span><strong>Ação necessária</strong>Seu pedido só fica completo depois que você enviar a mensagem no WhatsApp da loja. Toque no botão verde abaixo e depois em <b>enviar</b> na conversa.</span>
+            </div>
+            <div v-else class="wa-sent-note">
+              <Icon name="check" />
+              <span>Conversa aberta. Confira se você tocou em <b>enviar</b> no WhatsApp. Não abriu? Toque no botão de novo.</span>
+            </div>
+            <a class="btn large block wa-send" :class="{ pulse: !waSent }" :href="placedLink" target="_blank" rel="noopener" @click="sendWhatsApp">
+              <Icon name="whatsapp" style="width: 22px; height: 22px" />{{ waSent ? 'Abrir o WhatsApp de novo' : 'Enviar pedido no WhatsApp' }}
             </a>
           </template>
           <p v-else class="muted">A loja já recebeu seu pedido.</p>
-          <button class="btn secondary block" style="margin-top: 10px" @click="finish">Fazer outro pedido</button>
+          <button v-if="!mustSend" class="btn secondary block" style="margin-top: 10px" @click="finish">Fazer outro pedido</button>
         </div>
 
         <form v-else @submit.prevent="send">
@@ -440,6 +474,10 @@ function scrollTo(id) {
           <div v-if="belowMinimum" class="notice">Faltam {{ money(store.min_order - subtotal) }} para o pedido mínimo de {{ money(store.min_order) }}.</div>
           <div v-if="error" class="error">{{ error }}</div>
 
+          <div v-if="business.phone" class="action-needed" style="margin: 0 0 12px">
+            <Icon name="whatsapp" />
+            <span><strong>Importante</strong>Depois de tocar em Fazer pedido, você vai precisar enviar o pedido no WhatsApp da loja pra ele ficar completo.</span>
+          </div>
           <button class="btn large block" :disabled="!canOrder || belowMinimum || busy">
             <Icon name="whatsapp" style="width: 20px; height: 20px" />{{ busy ? 'Enviando...' : 'Fazer pedido' }}
           </button>
@@ -496,6 +534,15 @@ function scrollTo(id) {
 .last-order-actions .btn { flex: 1 1 auto; justify-content: center; }
 .wa-send { background: #25d366; color: #fff; box-shadow: 0 0 24px rgba(37, 211, 102, 0.4); margin-top: 6px; }
 .wa-send:hover { background: #1ebe5b; }
+.wa-required { margin: 4px 0 12px; }
+.wa-required.nudge { animation: wa-shake 0.45s ease; border-color: #facc15; background: rgba(250, 204, 21, 0.2); }
+.wa-send.pulse { animation: wa-pulse 1.6s ease-in-out infinite; }
+.wa-sent-note { display: flex; gap: 8px; align-items: flex-start; margin: 4px 0 12px; padding: 10px 12px; border-radius: 12px;
+  background: rgba(37, 211, 102, 0.1); border: 1px solid rgba(37, 211, 102, 0.4); font-size: 0.88rem; text-align: left; }
+.wa-sent-note svg { width: 17px; height: 17px; flex-shrink: 0; margin-top: 1px; color: #25d366; }
+@keyframes wa-shake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+@keyframes wa-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.55); } 50% { box-shadow: 0 0 0 10px rgba(37, 211, 102, 0); } }
+@media (prefers-reduced-motion: reduce) { .wa-required.nudge, .wa-send.pulse { animation: none; } }
 
 @media (max-width: 520px) { .item-photo { width: 88px; height: 88px; } }
 </style>
