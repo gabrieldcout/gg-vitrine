@@ -6,7 +6,8 @@ import { isPlatformAdmin } from '@/lib/session'
 import AppLogo from '@/components/AppLogo.vue'
 import BackButton from '@/components/BackButton.vue'
 import Icon from '@/components/Icon.vue'
-import { APP_DOMAIN } from '@/config/brand'
+import { APP_DOMAIN, APP_NAME, SUPPORT_WHATSAPP } from '@/config/brand'
+import { waLink } from '@/lib/whatsapp'
 
 const route = useRoute()
 const router = useRouter()
@@ -36,12 +37,22 @@ function startResendTimer() {
   }, 1000)
 }
 
+const unconfirmedLink = ref('')
 async function submit() {
   error.value = info.value = ''
+  unconfirmedLink.value = ''
   loading.value = true
   const { error: err } = await supabase.auth.signInWithPassword({ email: email.value, password: password.value })
   loading.value = false
   if (err) {
+    if (err.message === 'Email not confirmed') {
+      error.value = 'Seu e-mail ainda não foi confirmado. Use o código que mandamos no seu e-mail ou, se ele não chegou, fale com a gente no WhatsApp que liberamos.'
+      unconfirmedLink.value = SUPPORT_WHATSAPP && waLink(SUPPORT_WHATSAPP,
+        `Olá! Não consigo entrar no ${APP_NAME}: meu e-mail não foi confirmado porque o código não chegou.
+
+*E-mail:* ${email.value}`)
+      return
+    }
     error.value = err.message === 'Invalid login credentials' ? 'E-mail ou senha incorretos.' : err.message
     return
   }
@@ -187,6 +198,10 @@ async function forgot() {
                 <span>{{ error }}</span>
               </div>
             </transition>
+            <a v-if="error && unconfirmedLink" class="btn small secondary block" style="margin-bottom: 12px"
+               :href="unconfirmedLink" target="_blank" rel="noopener">
+              <Icon name="whatsapp" style="width: 16px; height: 16px" />Falar no WhatsApp pra liberar
+            </a>
             <transition name="auth-msg">
               <div v-if="info" class="auth-alert success">
                 <span class="auth-alert-icon"><Icon name="check" /></span>

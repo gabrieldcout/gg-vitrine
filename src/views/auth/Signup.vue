@@ -11,6 +11,15 @@ import { waLink } from '@/lib/whatsapp'
 
 const router = useRouter()
 const setupLink = SUPPORT_WHATSAPP && waLink(SUPPORT_WHATSAPP, `Olá! Quero que o ${APP_NAME} monte minha vitrine.`)
+// Código não chegou: o cliente avisa no WhatsApp e a gente confirma o e-mail
+// pelo admin (Empresas › Confirmar e-mail).
+const noCodeLink = computed(() => SUPPORT_WHATSAPP && waLink(SUPPORT_WHATSAPP,
+  `Olá! Me cadastrei no ${APP_NAME} e o código de confirmação não chegou no meu e-mail.
+
+` +
+  `*Estabelecimento:* ${form.value.name}
+*E-mail:* ${form.value.email}
+*Link:* ${APP_DOMAIN}/${slugify(form.value.slug)}`))
 const form = ref({ name: '', slug: '', category: CATEGORIES[0], phone: '', cpf: '', ownerName: '', email: '', password: '', accepted: false })
 
 function maskCPF(v) {
@@ -192,6 +201,13 @@ function startResendCooldown() {
               {{ resendCooldown > 0 ? `Reenviar em ${resendCooldown}s` : 'Reenviar código' }}
             </button>
           </p>
+          <div v-if="noCodeLink" class="no-code">
+            <p>O código não chega nem depois de reenviar? Olhe também a caixa de <strong>spam</strong>. Se não estiver lá, chama a gente que liberamos seu cadastro na hora.</p>
+            <a class="btn small secondary block" :href="noCodeLink" target="_blank" rel="noopener">
+              <Icon name="whatsapp" style="width: 16px; height: 16px" />O código não chegou
+            </a>
+            <small class="muted">Depois que a gente avisar que liberou, é só <RouterLink to="/entrar">entrar</RouterLink> com seu e-mail e senha.</small>
+          </div>
         </form>
       </div>
 
@@ -795,4 +811,7 @@ function startResendCooldown() {
   .slug-input-wrap input { font-size: 0.84rem; }
   .slug-preview { font-size: 0.76rem; padding: 10px 12px; }
 }
+.no-code { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); text-align: center; font-size: 0.85rem; }
+.no-code p { margin: 0 0 10px; color: var(--silver); }
+.no-code small { display: block; margin-top: 8px; }
 </style>

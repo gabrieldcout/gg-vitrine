@@ -2,6 +2,9 @@
 import { ref, computed, onMounted } from 'vue'
 import { supabase, unwrap } from '@/lib/supabase'
 import { money, formatDate, todayISO, BUSINESS_STATUS, SUBSCRIPTION_STATUS } from '@/lib/format'
+import { ask } from '@/lib/confirm'
+import Icon from '@/components/Icon.vue'
+import { toast } from '@/lib/toast'
 
 const rows = ref([])
 const plans = ref([])
@@ -36,6 +39,16 @@ async function call(fn, args) {
   if (err) error.value = err.message
   await load()
   return !err
+}
+
+// E-mail de confirmação que não chegou: confirma por aqui. Só aparece depois
+// da migration 0030 (antes disso a coluna não vem).
+const unconfirmed = computed(() => rows.value.filter((r) => 'email_confirmed_at' in r && !r.email_confirmed_at))
+async function confirmEmail(b) {
+  if (!await ask(`Confirmar o e-mail ${b.owner_email} de ${b.name}?
+Depois disso o cliente já entra com o e-mail e a senha que cadastrou.`,
+    { confirmLabel: 'Confirmar e-mail' })) return
+  if (await call('admin_confirm_email', { p_owner: b.owner_id })) toast(`E-mail de ${b.name} confirmado.`)
 }
 
 function setStatus(b, status) {
@@ -173,6 +186,14 @@ async function savePayment() {
     <button class="btn" @click="savePayment">Registrar</button>
   </div>
 
+  <div v-if="unconfirmed.length" class="action-needed" style="margin: 0 0 16px">
+    <Icon name="mail" />
+    <span>
+      <strong>{{ unconfirmed.length === 1 ? '1 cadastro esperando' : `${unconfirmed.length} cadastros esperando` }} confirmação de e-mail</strong>
+      Se o código não chegou pro cliente, toque em "Confirmar e-mail" na empresa: {{ unconfirmed.map((r) => r.name).join(', ') }}.
+    </span>
+  </div>
+
   <div class="card">
     <div class="row" style="margin-bottom: 12px">
       <input v-model="search" placeholder="Buscar por nome, link ou e-mail" />
@@ -191,6 +212,8 @@ async function savePayment() {
             <td>
               <strong>{{ b.name }}</strong><br />
               <small class="muted">/{{ b.slug }} · {{ b.category }}<br />{{ b.owner_email }} · {{ b.phone }}</small>
+              <br v-if="'email_confirmed_at' in b && !b.email_confirmed_at" />
+              <span v-if="'email_confirmed_at' in b && !b.email_confirmed_at" class="badge yellow">E-mail não confirmado</span>
             </td>
             <td>
               <span :class="['badge', STATUS_BADGE[b.status]]">{{ BUSINESS_STATUS[b.status] }}</span>
@@ -218,6 +241,7 @@ async function savePayment() {
             </td>
             <td>
               <div class="chips">
+                <button v-if="'email_confirmed_at' in b && !b.email_confirmed_at" class="btn small" @click="confirmEmail(b)">Confirmar e-mail</button>
                 <template v-if="b.status === 'pending'">
                   <button class="btn small" @click="setStatus(b, 'approved')">Aprovar</button>
                   <button class="btn small secondary" @click="setStatus(b, 'rejected')">Recusar</button>
