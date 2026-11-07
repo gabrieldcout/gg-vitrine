@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import { supabase } from '@/lib/supabase'
 import { brandVars } from '@/lib/colors'
-import { plural } from '@/lib/format'
+import { plural, formatPhone } from '@/lib/format'
 import { APP_NAME } from '@/config/brand'
 import AppLogo from '@/components/AppLogo.vue'
 import Icon from '@/components/Icon.vue'
@@ -103,7 +103,7 @@ onBeforeUnmount(() => io?.disconnect())
                 <small class="muted">· {{ plural(business.reviews.count, 'avaliação', 'avaliações') }}</small>
               </span>
               <span v-if="business.address"><Icon name="map" />{{ business.address }}</span>
-              <span v-if="business.phone"><Icon name="phone" />{{ business.phone }}</span>
+              <a v-if="business.phone" class="biz-phone" :href="`tel:${business.phone.replace(/\D/g, '')}`"><Icon name="phone" />{{ formatPhone(business.phone) }}</a>
             </div>
             <p v-if="business.description" class="biz-rich-desc">{{ business.description }}</p>
           </div>
@@ -188,4 +188,5 @@ onBeforeUnmount(() => io?.disconnect())
 .privacy-note { text-align: center; font-size: 0.75rem; color: var(--muted); margin-top: 8px; }
 .privacy-note a { color: var(--muted); text-decoration: underline; }
 .biz-rich-info .biz-rich-rating small { font-weight: 500; }
+.biz-phone { color: inherit; text-decoration: none; }
 </style>

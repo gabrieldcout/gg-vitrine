@@ -77,3 +77,12 @@ export const SUBSCRIPTION_STATUS = {
 export function plural(n, singular, pluralForm) {
   return `${n} ${Number(n) === 1 ? singular : pluralForm}`
 }
+
+// Telefone pra mostrar: (21) 99339-5271. Número fora do padrão sai como veio.
+export function formatPhone(v) {
+  let d = String(v ?? '').replace(/\D/g, '')
+  if (d.length > 11 && d.startsWith('55')) d = d.slice(2)
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
+  return String(v ?? '')
+}

@@ -357,7 +357,7 @@ th { font-size: 0.72rem; color: var(--muted); font-weight: 700; text-transform: 
   display: flex; flex-wrap: wrap; gap: 6px 14px;
   color: var(--muted); font-size: 0.88rem; margin-top: 6px;
 }
-.biz-rich-meta > span { display: inline-flex; align-items: center; gap: 6px; }
+.biz-rich-meta > span, .biz-rich-meta > a { display: inline-flex; align-items: center; gap: 6px; }
 .biz-rich-meta svg { width: 14px; height: 14px; color: var(--brand-ink); }
 .biz-rich-rating { display: inline-flex; align-items: center; gap: 6px; }
 .biz-rich-rating strong { color: var(--text); font-weight: 700; }
