@@ -163,18 +163,43 @@ function toggleAvailable(i) {
   run(supabase.from('menu_items').update({ available: !i.available }).eq('id', i.id))
 }
 
+// Foto direto da lista: toca na miniatura (ou no espaço vazio) e escolhe a foto.
+const quickInput = ref(null)
+const quickItem = ref(null)
+const quickBusy = ref(null)   // id do produto enviando foto
+function pickQuickPhoto(i) {
+  quickItem.value = i
+  quickInput.value.value = ''
+  quickInput.value.click()
+}
+async function onQuickPhoto(event) {
+  const file = event.target.files[0]
+  const item = quickItem.value
+  if (!file || !item) return
+  error.value = ''
+  quickBusy.value = item.id
+  const url = await sendPhoto(file)
+  if (url) await run(supabase.from('menu_items').update({ photo_url: url }).eq('id', item.id))
+  quickBusy.value = null
+}
+// Reduz e envia; devolve o link público (ou null com o erro na tela).
+async function sendPhoto(file) {
+  const small = await shrinkImage(file, { max: 1000 })
+  if (small.file.size > 5 * 1024 * 1024) { error.value = 'A foto precisa ter no máximo 5 MB.'; return null }
+  const path = `${biz.business.id}/menu/${Date.now()}.${small.ext}`
+  const { error: err } = await supabase.storage.from('logos').upload(path, small.file)
+  if (err) { error.value = err.message; return null }
+  return supabase.storage.from('logos').getPublicUrl(path).data.publicUrl
+}
+
 async function uploadPhoto(event) {
   const file = event.target.files[0]
   if (!file) return
   uploading.value = true
   error.value = ''
-  const small = await shrinkImage(file, { max: 1000 })
-  if (small.file.size > 5 * 1024 * 1024) { uploading.value = false; error.value = 'A foto precisa ter no máximo 5 MB.'; return }
-  const path = `${biz.business.id}/menu/${Date.now()}.${small.ext}`
-  const { error: err } = await supabase.storage.from('logos').upload(path, small.file)
+  const url = await sendPhoto(file)
   uploading.value = false
-  if (err) { error.value = err.message; return }
-  editing.value.photo_url = supabase.storage.from('logos').getPublicUrl(path).data.publicUrl
+  if (url) editing.value.photo_url = url
 }
 </script>
 
@@ -259,6 +284,8 @@ async function uploadPhoto(event) {
     </form>
   </div>
 
+  <input ref="quickInput" type="file" accept="image/png,image/jpeg,image/webp" hidden @change="onQuickPhoto" />
+
   <!-- Nova categoria -->
   <form class="card" @submit.prevent="addCategory">
     <div class="row">
@@ -290,8 +317,13 @@ async function uploadPhoto(event) {
 
     <p v-if="!itemsByCategory[c.id].length" class="muted" style="margin: 8px 0 0">Nenhum {{ T.item }} nesta categoria.</p>
     <div v-for="i in itemsByCategory[c.id]" :key="i.id" class="item-row" :class="{ off: !i.available }">
-      <img v-if="i.photo_url" :src="i.photo_url" alt="" class="thumb" />
-      <div v-else class="thumb empty"><Icon name="utensils" /></div>
+      <button type="button" class="thumb-btn" :disabled="quickBusy === i.id"
+              :title="i.photo_url ? 'Trocar foto' : 'Pôr foto'" :aria-label="i.photo_url ? `Trocar foto de ${i.name}` : `Pôr foto em ${i.name}`"
+              @click="pickQuickPhoto(i)">
+        <img v-if="i.photo_url" :src="i.photo_url" alt="" class="thumb" />
+        <span v-else class="thumb empty add"><Icon name="camera" /><small>Pôr foto</small></span>
+        <span v-if="quickBusy === i.id" class="thumb-busy">Enviando...</span>
+      </button>
       <div style="flex: 1; min-width: 0">
         <strong>{{ i.name }}</strong>
         <span v-if="!i.available" class="badge red" style="margin-left: 6px">{{ T.offBadge }}</span>
@@ -318,6 +350,12 @@ async function uploadPhoto(event) {
 .thumb.large { width: 84px; height: 84px; }
 .thumb.empty { display: grid; place-items: center; background: var(--surface); color: var(--muted); }
 .thumb.empty svg { width: 22px; height: 22px; }
+.thumb-btn { position: relative; padding: 0; border: none; background: none; cursor: pointer; flex-shrink: 0; border-radius: 12px; }
+.thumb-btn:hover .thumb { border-color: var(--brand, #3b82f6); }
+.thumb.empty.add { flex-direction: column; gap: 2px; border-style: dashed; color: var(--silver); }
+.thumb.empty.add svg { width: 18px; height: 18px; }
+.thumb.empty.add small { font-size: 0.62rem; font-weight: 600; }
+.thumb-busy { position: absolute; inset: 0; display: grid; place-items: center; border-radius: 12px; font-size: 0.62rem; background: rgba(0, 0, 0, 0.65); color: #fff; }
 .desc { font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .price { white-space: nowrap; }
 .addons { margin: 14px 0; padding: 14px; border-radius: 14px; border: 1px dashed var(--border); display: grid; gap: 12px; }
