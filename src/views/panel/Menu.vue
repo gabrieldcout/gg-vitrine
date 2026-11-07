@@ -29,8 +29,51 @@ const itemsByCategory = computed(() => {
   return map
 })
 
+// Adicionais (migration 0032): grupos com opções e preço, dentro do produto.
+const hasAddons = ref(false)
+const newId = () => (crypto.randomUUID?.() ?? `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`)
+const copyFrom = ref('')
+const otherItemsWithAddons = computed(() => items.value.filter((i) => i.id !== editing.value?.id && i.addon_groups?.length))
+
+function addGroup() {
+  editing.value.addon_groups.push({ id: newId(), name: '', required: false, max: 3, options: [{ id: newId(), name: '', price: '' }] })
+}
+function addOption(g) { g.options.push({ id: newId(), name: '', price: '' }) }
+function copyAddons() {
+  const src = items.value.find((i) => i.id === copyFrom.value)
+  if (!src) return
+  // Ids novos: cada produto tem os seus.
+  editing.value.addon_groups.push(...src.addon_groups.map((g) => ({
+    id: newId(), name: g.name, required: Number(g.min) > 0, max: g.max ?? '',
+    options: g.options.map((o) => ({ id: newId(), name: o.name, price: o.price })),
+  })))
+  copyFrom.value = ''
+}
+// Formulário -> jsonb guardado (ver 0032).
+function cleanGroups(groups) {
+  const out = []
+  for (const g of groups) {
+    const options = g.options
+      .filter((o) => o.name.trim())
+      .map((o) => ({ id: o.id, name: o.name.trim().slice(0, 60), price: Math.max(0, Number(o.price) || 0) }))
+    if (!g.name.trim() && !options.length) continue
+    if (!g.name.trim()) throw new Error('Dê um nome pra cada grupo de adicionais (ex.: Ingredientes adicionais).')
+    if (!options.length) throw new Error(`O grupo "${g.name.trim()}" precisa de pelo menos uma opção.`)
+    const max = g.max === '' || g.max == null ? null : Math.max(1, Math.min(Number(g.max), options.length))
+    out.push({ id: g.id, name: g.name.trim().slice(0, 60), min: g.required ? 1 : 0, max, options })
+  }
+  return out
+}
+function groupHint(g) {
+  const n = g.options.filter((o) => o.name.trim()).length
+  const max = g.max === '' || g.max == null ? null : Number(g.max)
+  if (g.required) return max === 1 ? 'O cliente escolhe 1 (obrigatório)' : `O cliente escolhe de 1 até ${max ?? n} (obrigatório)`
+  return max ? `O cliente pode escolher até ${max}` : 'O cliente escolhe quantos quiser'
+}
+
 async function load() {
   const bid = biz.business.id
+  hasAddons.value = !(await supabase.from('menu_items').select('addon_groups').limit(1)).error
   categories.value = unwrap(await supabase.from('menu_categories').select('*')
     .eq('business_id', bid).order('sort_order').order('name'))
   items.value = unwrap(await supabase.from('menu_items').select('*')
@@ -79,19 +122,26 @@ async function moveCategory(index, delta) {
 
 // ---- Produtos ----
 function newItem(category) {
-  editing.value = { id: null, category_id: category.id, name: '', description: '', price: '', photo_url: null, available: true }
+  editing.value = { id: null, category_id: category.id, name: '', description: '', price: '', photo_url: null, available: true, addon_groups: [] }
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 function editItem(i) {
   const { id, category_id, name, description, price, photo_url, available } = i
-  editing.value = { id, category_id, name, description, price, photo_url, available }
+  const addon_groups = (i.addon_groups ?? []).map((g) => ({
+    id: g.id, name: g.name, required: Number(g.min) > 0, max: g.max ?? '',
+    options: g.options.map((o) => ({ ...o })),
+  }))
+  editing.value = { id, category_id, name, description, price, photo_url, available, addon_groups }
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 async function saveItem() {
-  const { id, ...fields } = editing.value
+  const { id, addon_groups, ...fields } = editing.value
   const payload = { ...fields, price: Number(fields.price), business_id: biz.business.id }
+  if (hasAddons.value) {
+    try { payload.addon_groups = cleanGroups(addon_groups) } catch (e) { error.value = e.message; return }
+  }
   const ok = await run(id
     ? supabase.from('menu_items').update(payload).eq('id', id)
     : supabase.from('menu_items').insert(payload))
@@ -160,6 +210,38 @@ async function uploadPhoto(event) {
           <small v-if="uploading">Enviando foto...</small>
         </div>
       </div>
+      <!-- Adicionais -->
+      <div v-if="hasAddons" class="addons">
+        <div class="addons-head">
+          <strong>Adicionais <small class="muted">(opcional)</small></strong>
+          <small class="muted">Ex.: "Ingredientes adicionais": cheddar + R$ 3,00, bacon + R$ 4,00. Ou "Ponto da carne", obrigatório, escolhe 1.</small>
+        </div>
+        <div v-for="(g, gi) in editing.addon_groups" :key="g.id" class="addon-group">
+          <div class="row">
+            <div class="field" style="flex: 2 1 220px"><label>Nome do grupo</label><input v-model="g.name" maxlength="60" placeholder="Ex.: Ingredientes adicionais" /></div>
+            <div class="field" style="flex: 1 1 140px"><label>Máximo de escolhas</label><input v-model="g.max" type="number" min="1" placeholder="Sem limite" /></div>
+          </div>
+          <label class="addon-req"><input v-model="g.required" type="checkbox" /> Obrigatório escolher pelo menos 1</label>
+          <small class="muted addon-hint">{{ groupHint(g) }}</small>
+          <div v-for="(o, oi) in g.options" :key="o.id" class="addon-option">
+            <input v-model="o.name" maxlength="60" placeholder="Ex.: Cheddar" aria-label="Nome do adicional" />
+            <div class="addon-price"><span>+ R$</span><input v-model="o.price" type="number" min="0" step="0.01" placeholder="0,00" aria-label="Preço do adicional" /></div>
+            <button type="button" class="btn small secondary" title="Tirar opção" @click="g.options.splice(oi, 1)">✕</button>
+          </div>
+          <div class="chips" style="margin-top: 8px">
+            <button type="button" class="btn small secondary" @click="addOption(g)"><Icon name="plus" style="width: 14px; height: 14px" />Opção</button>
+            <button type="button" class="btn small danger" @click="editing.addon_groups.splice(gi, 1)">Tirar grupo</button>
+          </div>
+        </div>
+        <div class="chips">
+          <button type="button" class="btn small secondary" @click="addGroup"><Icon name="plus" style="width: 14px; height: 14px" />Grupo de adicionais</button>
+          <select v-if="otherItemsWithAddons.length" v-model="copyFrom" class="addon-copy" @change="copyAddons">
+            <option value="">Copiar adicionais de outro {{ T.item }}...</option>
+            <option v-for="i in otherItemsWithAddons" :key="i.id" :value="i.id">{{ i.name }}</option>
+          </select>
+        </div>
+      </div>
+
       <div class="spread">
         <label><input v-model="editing.available" type="checkbox" /> {{ T.available }}</label>
         <button class="btn" :disabled="uploading">{{ editing.id ? 'Salvar' : `Adicionar ${T.item}` }}</button>
@@ -203,6 +285,7 @@ async function uploadPhoto(event) {
       <div style="flex: 1; min-width: 0">
         <strong>{{ i.name }}</strong>
         <span v-if="!i.available" class="badge red" style="margin-left: 6px">{{ T.offBadge }}</span>
+        <span v-if="i.addon_groups?.length" class="badge" style="margin-left: 6px">com adicionais</span>
         <div class="muted desc">{{ i.description }}</div>
       </div>
       <strong class="price">{{ money(i.price) }}</strong>
@@ -224,5 +307,16 @@ async function uploadPhoto(event) {
 .thumb.empty svg { width: 22px; height: 22px; }
 .desc { font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .price { white-space: nowrap; }
+.addons { margin: 14px 0; padding: 14px; border-radius: 14px; border: 1px dashed var(--border); display: grid; gap: 12px; }
+.addons-head small { display: block; margin-top: 2px; }
+.addon-group { padding: 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); }
+.addon-req { display: flex; gap: 8px; align-items: center; font-size: 0.9rem; }
+.addon-hint { display: block; margin: 4px 0 8px; }
+.addon-option { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+.addon-option > input { flex: 1; min-width: 0; }
+.addon-price { display: flex; align-items: center; gap: 6px; width: 140px; flex-shrink: 0; }
+.addon-price span { color: var(--muted); font-size: 0.85rem; white-space: nowrap; }
+.addon-price input { min-width: 0; }
+.addon-copy { max-width: 280px; }
 @media (max-width: 640px) { .actions { width: 100%; } }
 </style>

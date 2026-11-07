@@ -42,11 +42,15 @@ const allHours = [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({ weekday, start: '00:0
 const cardapio = {
   ...agenda, kind: 'cardapio', name: 'Lanchonete do Beto', category: 'Lanchonete', primary_color: '#dc2626',
   loyalty: { required: 8, reward: '1 lanche grátis' }, services: [], professionals: [],
-  store: { accepting_orders: true, open_now: true, pickup_enabled: true, delivery_enabled: true, delivery_fee: 7, min_order: 30, delivery_area: 'Centro e Vila Nova', hours: allHours, delivery_other: true, pix_key: 'beto@lanchonete.com', pix_name: 'Roberto Silva',
+  store: { accepting_orders: true, open_now: true, pickup_enabled: true, delivery_enabled: true, delivery_fee: 7, min_order: 30, delivery_area: 'Centro e Vila Nova', hours: allHours, delivery_other: true, pix_key: 'beto@lanchonete.com', pix_name: 'Roberto Silva', payment_methods: ['pix', 'dinheiro', 'debito', 'credito'], card_fee_pct: 5,
     zones: [{ id: 'z1', name: 'Centro', fee: 5 }, { id: 'z2', name: 'Vila Nova', fee: 8 }, { id: 'z3', name: 'Jardim América', fee: 12 }] },
   menu: [
     { id: 'c1', name: 'Lanches', items: [
-      { id: 'i1', name: 'X-burguer', description: 'Pão, hambúrguer 150g, queijo, alface e tomate.', price: 28, photo_url: photo('burger'), available: true },
+      { id: 'i1', name: 'X-burguer', description: 'Pão, hambúrguer 150g, queijo, alface e tomate.', price: 28, photo_url: photo('burger'), available: true,
+        addon_groups: [
+          { id: 'g1', name: 'Ponto da carne', min: 1, max: 1, options: [{ id: 'o1', name: 'Mal passada', price: 0 }, { id: 'o2', name: 'Ao ponto', price: 0 }, { id: 'o3', name: 'Bem passada', price: 0 }] },
+          { id: 'g2', name: 'Ingredientes adicionais', min: 0, max: 3, options: [{ id: 'o4', name: 'Cheddar', price: 3 }, { id: 'o5', name: 'Catupiry', price: 3 }, { id: 'o6', name: 'Bacon', price: 4 }, { id: 'o7', name: 'Carne extra', price: 6 }] },
+        ] },
       { id: 'i2', name: 'X-bacon', description: null, price: 32, photo_url: null, available: false },
     ] },
     { id: 'c2', name: 'Bebidas', items: [

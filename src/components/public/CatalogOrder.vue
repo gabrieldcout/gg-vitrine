@@ -47,23 +47,77 @@ const feeLabel = computed(() => {
 const showHours = ref(false)
 
 // ---------------- Sacola ----------------
-const cart = ref({})   // { itemId: quantidade }
-const cartLines = computed(() => allItems.value
-  .filter((i) => cart.value[i.id])
-  .map((i) => ({ ...i, qty: cart.value[i.id], total: cart.value[i.id] * Number(i.price) })))
+// Cada linha da sacola é um produto com os adicionais escolhidos:
+// { chave: { itemId, qty, addons: [ids das opções], note } }. Produto sem
+// adicionais usa o próprio id como chave.
+const cart = ref({})
+const itemsById = computed(() => Object.fromEntries(allItems.value.map((i) => [i.id, i])))
+const groupsOf = (item) => (item.addon_groups ?? []).filter((g) => g.options?.length)
+const hasAddons = (item) => groupsOf(item).length > 0
+function addonObjs(item, ids) {
+  return groupsOf(item).flatMap((g) => g.options.filter((o) => ids.includes(o.id))
+    .map((o) => ({ id: o.id, group: g.name, name: o.name, price: Number(o.price) || 0 })))
+}
+const cartLines = computed(() => Object.entries(cart.value).map(([key, c]) => {
+  const item = itemsById.value[c.itemId]
+  if (!item) return null
+  const addons = addonObjs(item, c.addons)
+  const unit = Number(item.price) + addons.reduce((sum, a) => sum + a.price, 0)
+  return { key, id: item.id, name: item.name, qty: c.qty, addons, note: c.note, unit, total: unit * c.qty }
+}).filter(Boolean))
 const cartCount = computed(() => cartLines.value.reduce((n, l) => n + l.qty, 0))
 const subtotal = computed(() => cartLines.value.reduce((s, l) => s + l.total, 0))
+const qtyOf = (item) => cartLines.value.filter((l) => l.id === item.id).reduce((n, l) => n + l.qty, 0)
 
+function bump(key, delta, line) {
+  const cur = cart.value[key] ?? line
+  const qty = (cur?.qty ?? 0) + delta
+  const next = { ...cart.value }
+  if (qty > 0) next[key] = { ...cur, qty: Math.min(qty, 99) }
+  else delete next[key]
+  cart.value = next
+}
 function add(item) {
   if (!item.available || !canOrder.value) return
-  cart.value = { ...cart.value, [item.id]: (cart.value[item.id] ?? 0) + 1 }
+  if (hasAddons(item)) { openPicker(item); return }
+  bump(item.id, 1, { itemId: item.id, qty: 0, addons: [], note: '' })
 }
-function remove(item) {
-  const qty = (cart.value[item.id] ?? 0) - 1
-  const next = { ...cart.value }
-  if (qty > 0) next[item.id] = qty
-  else delete next[item.id]
-  cart.value = next
+function remove(item) { bump(item.id, -1) }
+
+// ---------------- Escolha de adicionais ----------------
+const picker = ref(null)   // { item, chosen: { groupId: [optionIds] }, note, qty }
+function openPicker(item) {
+  picker.value = { item, chosen: Object.fromEntries(groupsOf(item).map((g) => [g.id, []])), note: '', qty: 1, tried: false }
+}
+const maxOf = (g) => (g.max == null || g.max === '' ? Infinity : Number(g.max))
+function toggleOption(g, o) {
+  const list = picker.value.chosen[g.id]
+  const i = list.indexOf(o.id)
+  if (i >= 0) list.splice(i, 1)
+  else if (maxOf(g) === 1) list.splice(0, list.length, o.id)   // escolhe 1: troca
+  else if (list.length < maxOf(g)) list.push(o.id)
+}
+function groupRule(g) {
+  const max = maxOf(g)
+  if (Number(g.min) > 0) return max === 1 ? 'Escolha 1 (obrigatório)' : max === Infinity ? 'Escolha pelo menos 1' : `Escolha de 1 até ${max}`
+  return max === Infinity ? 'Escolha quantos quiser' : `Selecione até ${max} ${max === 1 ? 'opção' : 'opções'}`
+}
+const missingGroups = computed(() => picker.value
+  ? groupsOf(picker.value.item).filter((g) => picker.value.chosen[g.id].length < (Number(g.min) || 0)) : [])
+const pickerUnit = computed(() => {
+  if (!picker.value) return 0
+  const ids = Object.values(picker.value.chosen).flat()
+  return Number(picker.value.item.price) + addonObjs(picker.value.item, ids).reduce((sum, a) => sum + a.price, 0)
+})
+function confirmPicker() {
+  const p = picker.value
+  if (missingGroups.value.length) { p.tried = true; return }
+  // Mesma ordem dos grupos/opções do produto, pra combinação igual cair na mesma linha.
+  const ids = addonObjs(p.item, Object.values(p.chosen).flat()).map((a) => a.id)
+  const note = p.note.trim().slice(0, 200)
+  const key = `${p.item.id}|${ids.join(',')}|${note}`
+  bump(key, p.qty, { itemId: p.item.id, qty: 0, addons: ids, note })
+  picker.value = null
 }
 
 // ---------------- Finalizar ----------------
@@ -170,7 +224,11 @@ function address() {
 function buildMessage(order) {
   const f = form.value
   const lines = [`*Pedido #${order.number}: ${props.business.name}*`, '']
-  for (const l of order.items) lines.push(`${l.qty}x ${l.name}: ${money(l.total)}`)
+  for (const l of order.items) {
+    lines.push(`${l.qty}x ${l.name}: ${money(l.total)}`)
+    for (const a of l.addons ?? []) lines.push(`   + ${a.name}${Number(a.price) ? ` (${money(a.price)})` : ''}`)
+    if (l.note) lines.push(`   Obs.: ${l.note}`)
+  }
   lines.push('', `Subtotal: ${money(order.subtotal)}`)
   if (order.fee_pending) lines.push('Entrega: *a combinar* (meu bairro não está na lista)')
   else if (Number(order.delivery_fee)) lines.push(`Entrega: ${money(order.delivery_fee)}`)
@@ -232,7 +290,7 @@ function readLast() {
 }
 const lastOrder = ref(readLast())
 const lastDismissed = ref(false)
-const cartSignature = () => cartLines.value.map((l) => `${l.id}:${l.qty}`).sort().join(',')
+const cartSignature = () => cartLines.value.map((l) => `${l.key}:${l.qty}`).sort().join(',')
 const timeOf = (ms) => new Date(ms).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: tz.value })
 
 function saveLast(order) {
@@ -263,7 +321,7 @@ async function send() {
   busy.value = true
   const { data, error: err } = await supabase.rpc('place_order', {
     p_business: props.business.id,
-    p_items: cartLines.value.map((l) => ({ id: l.id, qty: l.qty })),
+    p_items: cartLines.value.map((l) => ({ id: l.id, qty: l.qty, addons: l.addons.map((a) => a.id), note: l.note || null })),
     p_name: f.name, p_phone: f.phone, p_mode: f.mode,
     p_address: f.mode === 'entrega' ? address() : null,
     p_payment: paymentLabel.value, p_change: f.payment === 'dinheiro' && f.change ? Number(f.change) : null,
@@ -351,9 +409,14 @@ function scrollTo(id) {
             <div class="item-foot">
               <span class="price">{{ money(i.price) }}</span>
               <span v-if="!i.available" class="badge red">Esgotado</span>
-              <div v-else-if="cart[i.id]" class="stepper">
+              <template v-else-if="hasAddons(i)">
+                <button class="btn small" :disabled="!canOrder" @click="add(i)">
+                  <Icon name="plus" style="width: 15px; height: 15px" />{{ qtyOf(i) ? `Adicionar (${qtyOf(i)} na sacola)` : 'Adicionar' }}
+                </button>
+              </template>
+              <div v-else-if="qtyOf(i)" class="stepper">
                 <button aria-label="Diminuir" @click="remove(i)"><Icon name="minus" /></button>
-                <span>{{ cart[i.id] }}</span>
+                <span>{{ qtyOf(i) }}</span>
                 <button aria-label="Aumentar" @click="add(i)"><Icon name="plus" /></button>
               </div>
               <button v-else class="btn small" :disabled="!canOrder" @click="add(i)">
@@ -365,6 +428,55 @@ function scrollTo(id) {
         </div>
       </div>
     </section>
+
+    <!-- Escolha de adicionais -->
+    <div v-if="picker" class="sheet-backdrop" @click.self="picker = null">
+      <div class="sheet picker">
+        <img v-if="picker.item.photo_url" :src="picker.item.photo_url" :alt="picker.item.name" class="picker-photo" />
+        <div class="picker-head">
+          <div>
+            <h2 style="margin: 0">{{ picker.item.name }}</h2>
+            <p v-if="picker.item.description" class="muted" style="margin: 4px 0 0">{{ picker.item.description }}</p>
+          </div>
+          <button type="button" class="btn small secondary" aria-label="Fechar" @click="picker = null">✕</button>
+        </div>
+        <p class="price" style="margin: 8px 0 0">{{ money(picker.item.price) }}</p>
+
+        <div v-for="g in groupsOf(picker.item)" :key="g.id" class="pick-group"
+             :class="{ missing: picker.tried && missingGroups.includes(g) }">
+          <div class="pick-head">
+            <strong>{{ g.name }}</strong>
+            <small>{{ groupRule(g) }}</small>
+          </div>
+          <div class="pick-options">
+            <button v-for="o in g.options" :key="o.id" type="button" class="pick-option"
+                    :class="{ selected: picker.chosen[g.id].includes(o.id) }"
+                    :disabled="!picker.chosen[g.id].includes(o.id) && maxOf(g) > 1 && picker.chosen[g.id].length >= maxOf(g)"
+                    @click="toggleOption(g, o)">
+              <span class="pick-box"><Icon v-if="picker.chosen[g.id].includes(o.id)" name="check" /></span>
+              <span><strong>{{ o.name }}</strong><small v-if="Number(o.price)">+ {{ money(o.price) }}</small></span>
+            </button>
+          </div>
+          <small v-if="picker.tried && missingGroups.includes(g)" class="pick-error">Escolha uma opção aqui pra continuar.</small>
+        </div>
+
+        <div class="field" style="margin-top: 14px">
+          <label>Observação <small>(opcional)</small></label>
+          <input v-model="picker.note" maxlength="200" placeholder="Ex.: sem cebola, bem passado" />
+        </div>
+
+        <div class="picker-foot">
+          <div class="stepper">
+            <button type="button" aria-label="Diminuir" :disabled="picker.qty <= 1" @click="picker.qty--"><Icon name="minus" /></button>
+            <span>{{ picker.qty }}</span>
+            <button type="button" aria-label="Aumentar" @click="picker.qty = Math.min(picker.qty + 1, 99)"><Icon name="plus" /></button>
+          </div>
+          <button type="button" class="btn large" style="flex: 1" @click="confirmPicker">
+            Adicionar · {{ money(pickerUnit * picker.qty) }}
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- Barra da sacola -->
     <div v-if="cartCount && !checkoutOpen" class="cart-bar">
@@ -408,13 +520,17 @@ function scrollTo(id) {
             <h2 style="margin: 0">Sua sacola</h2>
             <button type="button" class="btn small secondary" @click="checkoutOpen = false">Continuar comprando</button>
           </div>
-          <div v-for="l in cartLines" :key="l.id" class="line">
+          <div v-for="l in cartLines" :key="l.key" class="line">
             <div class="stepper small">
-              <button type="button" @click="remove(l)"><Icon name="minus" /></button>
+              <button type="button" @click="bump(l.key, -1)"><Icon name="minus" /></button>
               <span>{{ l.qty }}</span>
-              <button type="button" @click="add(l)"><Icon name="plus" /></button>
+              <button type="button" @click="bump(l.key, 1)"><Icon name="plus" /></button>
             </div>
-            <span style="flex: 1">{{ l.name }}</span>
+            <span style="flex: 1">
+              {{ l.name }}
+              <small v-if="l.addons.length" class="line-extra">+ {{ l.addons.map((a) => a.name).join(', ') }}</small>
+              <small v-if="l.note" class="line-extra">Obs.: {{ l.note }}</small>
+            </span>
             <strong>{{ money(l.total) }}</strong>
           </div>
 
@@ -555,6 +671,30 @@ function scrollTo(id) {
 .line { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
 .totals { display: grid; gap: 6px; padding: 14px 0; margin: 6px 0 14px; border-top: 1px solid var(--border); }
 .totals .total { font-size: 1.25rem; font-weight: 800; }
+.line-extra { display: block; color: var(--muted); font-size: 0.8rem; }
+.picker { padding-top: 0; }
+.picker:not(:has(.picker-photo)) { padding-top: 22px; }
+.picker-photo { display: block; width: calc(100% + 36px); max-width: none; margin: 0 -18px 14px; height: 200px; object-fit: cover; }
+.pick-group { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
+.pick-group.missing .pick-head small { color: var(--danger); }
+.pick-head strong { display: block; font-size: 1rem; }
+.pick-head small { color: var(--muted); font-size: 0.84rem; }
+.pick-options { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 10px; }
+.pick-option { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px; text-align: left; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--border); color: var(--text); font: inherit; }
+.pick-option strong { display: block; font-size: 0.92rem; }
+.pick-option small { display: block; color: var(--muted); font-size: 0.82rem; }
+.picker-head { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; }
+.picker-head .btn { flex-shrink: 0; }
+.pick-option.selected { border-color: var(--brand); background: var(--brand-soft); }
+.pick-option:disabled { opacity: 0.45; cursor: not-allowed; }
+.pick-box { width: 20px; height: 20px; flex-shrink: 0; border-radius: 6px; border: 2px solid var(--border); display: grid; place-items: center; }
+.pick-option.selected .pick-box { background: var(--brand); border-color: var(--brand); color: var(--brand-contrast); }
+.pick-box svg { width: 13px; height: 13px; }
+.pick-error { display: block; margin-top: 6px; color: var(--danger); }
+.picker-foot { position: sticky; bottom: calc(-22px - env(safe-area-inset-bottom)); display: flex; gap: 12px; align-items: center;
+  margin: 16px -18px calc(-22px - env(safe-area-inset-bottom)); padding: 14px 18px calc(14px + env(safe-area-inset-bottom));
+  background: #0a1426; border-top: 1px solid var(--border); }
 .card-note { margin: 0 0 14px; padding: 10px 12px; border-radius: 12px; font-size: 0.86rem; background: var(--surface); border: 1px solid var(--border); }
 .pix-box { margin: 4px 0 14px; padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(50, 188, 173, 0.45); background: rgba(50, 188, 173, 0.1); text-align: left; }
 .pix-box small { display: block; color: var(--silver); font-size: 0.84rem; line-height: 1.4; }

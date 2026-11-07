@@ -20,6 +20,7 @@ const STYLE = `
   .row strong { text-align: right; }
   .total { font-size: 15px; }
   .notes { margin: 6px 0 0; white-space: pre-wrap; }
+  .extra { margin: 0 0 3px 14px; font-size: 12px; }
   .foot { text-align: center; font-size: 11px; margin-top: 10px; }
   table { width: 100%; border-collapse: collapse; }
   th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid #ccc; vertical-align: top; }
@@ -93,7 +94,9 @@ export function printDay(list, business, dayLabel, total) {
 export function printOrder(o, business) {
   const tz = business.timezone
   const items = (o.order_items ?? []).map((i) =>
-    `<div class="row"><span>${esc(i.qty)}x ${esc(i.name)}</span><strong>${esc(money(i.total))}</strong></div>`).join('')
+    `<div class="row"><span>${esc(i.qty)}x ${esc(i.name)}</span><strong>${esc(money(i.total))}</strong></div>` +
+    (i.addons ?? []).map((a) => `<div class="extra">+ ${esc(a.name)}</div>`).join('') +
+    (i.note ? `<div class="extra">Obs.: ${esc(i.note)}</div>` : '')).join('')
   const change = o.change_for ? ` · troco p/ ${esc(money(o.change_for))}` : ''
   printHtml(`Pedido #${o.number}`, `
     <div class="ticket">

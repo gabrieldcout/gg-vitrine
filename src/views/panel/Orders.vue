@@ -142,7 +142,7 @@ async function loadPeriod() {
   const range = periodRange.value
   if (!range) { periodOrders.value = []; return }
   try {
-    periodOrders.value = unwrap(await supabase.from('orders').select('*, order_items(name, qty, unit_price, total)')
+    periodOrders.value = unwrap(await supabase.from('orders').select('*, order_items(*)')
       .eq('business_id', biz.business.id)
       .gte('created_at', zonedToUtc(range[0], '00:00', tz.value).toISOString())
       .lt('created_at', zonedToUtc(range[1], '00:00', tz.value).toISOString())
@@ -171,7 +171,7 @@ const periodTotal = computed(() => periodSold.value.reduce((s, o) => s + Number(
 
 async function load() {
   try {
-    orders.value = unwrap(await supabase.from('orders').select('*, order_items(name, qty, unit_price, total)')
+    orders.value = unwrap(await supabase.from('orders').select('*, order_items(*)')
       .eq('business_id', biz.business.id).order('created_at', { ascending: false }).limit(1000))
     handleNew(orders.value)
     if (periodRange.value) loadPeriod()
@@ -328,7 +328,10 @@ function customerLink(o) {
       <small>{{ formatDate(o.created_at, tz, { day: '2-digit', month: '2-digit' }) }} às {{ formatTime(o.created_at, tz) }}</small>
 
       <ul class="items">
-        <li v-for="(i, n) in o.order_items" :key="n"><strong>{{ i.qty }}x</strong> {{ i.name }} <span class="muted">{{ money(i.total) }}</span></li>
+        <li v-for="(i, n) in o.order_items" :key="n"><strong>{{ i.qty }}x</strong> {{ i.name }} <span class="muted">{{ money(i.total) }}</span>
+          <small v-if="i.addons?.length" class="item-extra">+ {{ i.addons.map((a) => a.name).join(', ') }}</small>
+          <small v-if="i.note" class="item-extra">Obs.: {{ i.note }}</small>
+        </li>
       </ul>
 
       <div class="meta">
@@ -397,4 +400,5 @@ function customerLink(o) {
 .meta .wa-missing { color: #fbbf24; font-weight: 600; }
 .meta .wa-missing svg { color: #fbbf24; }
 .order-settings .print-link { color: inherit; text-decoration: none; align-items: center; }
+.item-extra { display: block; color: var(--silver); font-size: 0.85rem; padding-left: 22px; }
 </style>

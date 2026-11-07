@@ -42,7 +42,7 @@ export function queuePrint(order, business) {
 
 async function fetchRecent(businessId) {
   const { data, error } = await supabase.from('orders')
-    .select('*, order_items(name, qty, unit_price, total)')
+    .select('*, order_items(*)')
     .eq('business_id', businessId)
     .gte('created_at', new Date(Date.now() - CATCH_UP_MS).toISOString())
     .order('created_at', { ascending: true })
