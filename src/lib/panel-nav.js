@@ -21,6 +21,7 @@ export const PANEL_NAV = [
   { to: '/painel/fidelidade', label: 'Fidelidade', icon: 'gift', feature: 'fidelidade', kinds: ['agenda', 'cardapio'] },
   { to: '/painel/cupons', label: 'Cupons', icon: 'tag', feature: 'cupons', kinds: ['agenda', 'cardapio'] },
   { to: '/painel/promocao', label: 'Promoção', icon: 'sparkles' },
+  { to: '/painel/visitas', label: 'Visitas', icon: 'chart', feature: 'relatorio_visitas' },
   { to: '/painel/divulgar', label: 'Divulgar', icon: 'qr' },
   { to: '/painel/tutorial', label: 'Tutorial', icon: 'sparkles', kinds: ['agenda'] },
   { to: '/painel/financeiro', label: 'Financeiro', icon: 'chart' },

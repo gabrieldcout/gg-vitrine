@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { track } from '@/lib/track'
 import { supabase, unwrap } from '@/lib/supabase'
 import { session, signOut } from '@/lib/session'
 import { money, formatTime, formatDate, formatDateTime, todayISO, addDaysISO, zonedToUtc, APPOINTMENT_STATUS } from '@/lib/format'
@@ -229,6 +230,7 @@ async function confirm() {
       p_photo: photoUrl,
     })
     if (err) { loadSlots(); throw err }
+    track(business.value.id, 'agendamento')
     booked.value = {
       ...slot.value, service: service.value, price: quote ? service.value.price : finalPrice.value,
       idea: quote ? idea.value.trim() : '', photo: photoUrl,

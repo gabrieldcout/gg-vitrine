@@ -11,13 +11,15 @@ import { toast } from '@/lib/toast'
 
 const PLAN_PITCH = {
   solo: 'Pra quem está começando ou toca o negócio sozinho.',
+  plus: 'Sua vitrine 100% com a sua cara, e você vê quem te visita.',
   equipe: 'Pra quem gerencia poucas unidades ou está crescendo.',
   rede: 'Pra redes com várias unidades no ar.',
 }
 const PLAN_BULLETS = {
   solo: ['1 estabelecimento', 'Profissionais ilimitados', 'Lembretes no WhatsApp', 'Galeria, avaliações e fidelidade'],
-  equipe: ['Até 3 estabelecimentos', 'Agendas separadas por unidade', 'Troca entre vitrines em 1 clique', 'Pague 1 vez, use nos 3'],
-  rede: ['Até 5 estabelecimentos', 'Agendas separadas por unidade', 'Preço por unidade menor', 'Suporte prioritário'],
+  plus: ['Tudo do Solo', 'Sem a marca GG Vitrine', 'Relatório de visitas e cliques', 'Vídeos na galeria', 'Montagem da vitrine + suporte prioritário'],
+  equipe: ['Até 3 estabelecimentos', 'Tudo do Solo Plus em cada vitrine', 'Troca entre vitrines em 1 clique', 'Pague 1 vez, use nos 3'],
+  rede: ['Até 5 estabelecimentos', 'Tudo do Solo Plus em cada vitrine', 'Preço por unidade menor', 'Suporte prioritário'],
 }
 
 const biz = useBusiness()
@@ -54,8 +56,13 @@ onMounted(async () => {
 async function choose(plan) {
   error.value = ''
   const { error: err } = await supabase.rpc('choose_plan', { p_plan: plan.id })
-  if (err) error.value = err.message
-  else { await biz.reload(); loadQuote() }
+  if (err) { error.value = err.message; return }
+  // Assinatura em dia: atualiza o valor da mensalidade no Asaas pro plano novo.
+  if (sub.value?.status === 'active') {
+    await supabase.functions.invoke('asaas-checkout', { body: { action: 'sync-price' } }).catch(() => {})
+  }
+  await biz.reload(); loadQuote()
+  toast(`Plano ${plan.name} escolhido.`)
 }
 
 const whatsappLink = computed(() => SUPPORT_WHATSAPP &&
@@ -316,16 +323,16 @@ async function cancelSubscription() {
         {{ sub ? 'Trocar plano' : 'Escolha seu plano' }}
       </h2>
       <p class="muted plans-sub">
-        Todos os planos têm as mesmas funcionalidades. Mudam só os <strong>estabelecimentos</strong> que você pode cadastrar na sua conta.
+        O <strong>Solo Plus</strong> tira a marca GG Vitrine, mostra suas visitas e libera vídeos. Equipe e Rede têm tudo isso pra mais de um <strong>estabelecimento</strong>.
       </p>
     </div>
     <div class="plans-grid">
       <div v-for="plan in plans" :key="plan.id"
            class="plan-card"
-           :class="{ featured: plan.id === 'equipe', cant: plan.max_businesses < businessesCount, selected: sub?.plan_id === plan.id }">
-        <div v-if="plan.id === 'equipe'" class="plan-ribbon">
+           :class="{ featured: plan.id === 'plus', cant: plan.max_businesses < businessesCount, selected: sub?.plan_id === plan.id }">
+        <div v-if="plan.id === 'plus'" class="plan-ribbon">
           <Icon name="sparkles" />
-          Mais escolhido
+          Recomendado
         </div>
         <div v-if="sub?.plan_id === plan.id" class="plan-current">
           <Icon name="check" />
@@ -353,7 +360,7 @@ async function cancelSubscription() {
         </ul>
 
         <button class="btn block"
-                :class="plan.id === 'equipe' ? '' : 'secondary'"
+                :class="plan.id === 'plus' ? '' : 'secondary'"
                 :disabled="sub?.plan_id === plan.id || plan.max_businesses < businessesCount"
                 @click="choose(plan)">
           {{ sub?.plan_id === plan.id ? 'Selecionado' : (plan.max_businesses < businessesCount ? 'Insuficiente' : (sub ? 'Trocar pra este' : `Começar com o ${plan.name}`)) }}
@@ -684,7 +691,7 @@ async function cancelSubscription() {
 
 .plans-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 16px;
   padding-top: 16px; /* espaço pro ribbon */
 }

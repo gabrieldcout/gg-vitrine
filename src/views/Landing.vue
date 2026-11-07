@@ -26,8 +26,9 @@ function scrollToTop() {
 }
 
 // Copy específico por plano: tagline (quem é o alvo) + bullets.
-// As features em si são as mesmas em todos os planos; o que muda é o número
-// de estabelecimentos — e é isso que os bullets reforçam.
+// Solo é o básico; o Solo Plus soma os extras (sem marca, relatório de visitas,
+// vídeos, suporte prioritário e montagem); Equipe e Rede têm os extras do Plus
+// e mais estabelecimentos.
 const planCopy = {
   solo: {
     tagline: 'Pra quem está começando ou toca o negócio sozinho.',
@@ -39,12 +40,23 @@ const planCopy = {
       'Galeria, avaliações e fidelidade',
     ],
   },
+  plus: {
+    tagline: 'Pra quem quer uma vitrine 100% com a sua cara e ver o resultado.',
+    bullets: [
+      'Tudo do Solo',
+      'Sem a marca GG Vitrine no rodapé',
+      'Relatório de visitas e cliques',
+      'Vídeos na galeria',
+      'A gente monta sua vitrine pra você',
+      'Suporte prioritário no WhatsApp',
+    ],
+  },
   equipe: {
     tagline: 'Ideal pra quem gerencia poucas unidades ou está crescendo.',
     bullets: [
       'Até 3 estabelecimentos no mesmo login',
       'Agendas separadas pra cada unidade',
-      'Tudo que o Solo tem, pra cada vitrine',
+      'Tudo do Solo Plus, pra cada vitrine',
       'Troca entre vitrines num clique',
       'Pague 1 vez, use nos 3',
     ],
@@ -54,7 +66,7 @@ const planCopy = {
     bullets: [
       'Até 5 estabelecimentos no mesmo login',
       'Agendas separadas pra cada unidade',
-      'Preço por unidade menor que no Solo',
+      'Tudo do Solo Plus, pra cada vitrine',
       'Links e QR Codes individuais',
       'Suporte prioritário no WhatsApp',
     ],
@@ -479,9 +491,9 @@ onBeforeUnmount(() => {
       <p class="eyebrow">Planos</p>
       <h2 class="section-title">
         Pague uma vez por mês.<br />
-        <span class="gradient-text">Gerencie quantos negócios quiser.</span>
+        <span class="gradient-text">Escolha o plano do seu tamanho.</span>
       </h2>
-      <p class="section-sub">Todos os planos têm as mesmas funcionalidades — mudam só o número de estabelecimentos que você pode cadastrar na sua conta.</p>
+      <p class="section-sub">O Solo tem tudo pra começar. O Solo Plus deixa a vitrine 100% sua e mostra quantas pessoas te visitam. Equipe e Rede são pra quem tem mais de um negócio.</p>
       <div class="plans-trial">
         <Icon name="sparkles" />
         <strong>Experimente qualquer plano por 7 dias grátis.</strong>
@@ -494,13 +506,13 @@ onBeforeUnmount(() => {
         v-for="(plan, i) in plans"
         :key="plan.id"
         class="card plan"
-        :class="{ featured: plan.id === 'equipe' }"
+        :class="{ featured: plan.id === 'plus' }"
         data-reveal
         :style="{ '--delay': i * 90 + 'ms' }"
       >
-        <div v-if="plan.id === 'equipe'" class="ribbon">
+        <div v-if="plan.id === 'plus'" class="ribbon">
           <Icon name="sparkles" />
-          Mais escolhido
+          Recomendado
         </div>
         <div class="plan-head">
           <h3 class="plan-name">{{ plan.name }}</h3>
@@ -521,7 +533,7 @@ onBeforeUnmount(() => {
             {{ f }}
           </li>
         </ul>
-        <RouterLink :class="['btn', 'block', plan.id === 'equipe' ? '' : 'secondary']" to="/cadastro">
+        <RouterLink :class="['btn', 'block', plan.id === 'plus' ? '' : 'secondary']" to="/cadastro">
           Começar com o {{ plan.name }}
         </RouterLink>
       </div>
@@ -1423,7 +1435,7 @@ onBeforeUnmount(() => {
    ===================================================================== */
 .plans {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 20px;
   align-items: stretch;
   padding-top: 20px; /* espaço pro ribbon */
@@ -1553,6 +1565,9 @@ onBeforeUnmount(() => {
   .journey-track { top: 94px; left: 15%; right: 15%; }
 }
 
+@media (max-width: 1180px) and (min-width: 901px) {
+  .plans { grid-template-columns: repeat(2, 1fr); }
+}
 @media (max-width: 900px) {
   .hero-grid { grid-template-columns: 1fr; padding: 48px 0 64px; gap: 48px; }
   .hero-visual { min-height: 480px; }

@@ -124,4 +124,7 @@ export const FEATURE_LABELS = {
   qrcode: 'QR Code pronto para imprimir',
   fidelidade: 'Cartão fidelidade digital',
   cupons: 'Cupons de desconto',
+  sem_marca: 'Vitrine sem a marca GG Vitrine',
+  relatorio_visitas: 'Relatório de visitas e cliques',
+  videos: 'Vídeos na galeria',
 }

@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { money } from '@/lib/format'
 import { isOpenNow, nextOpening, hoursSummary } from '@/lib/store-hours'
 import { waLink } from '@/lib/whatsapp'
+import { track } from '@/lib/track'
 import Icon from '@/components/Icon.vue'
 
 const props = defineProps({ business: { type: Object, required: true } })
@@ -262,6 +263,7 @@ function markWhatsApp(id = placed.value?.id) {
 const waSent = ref(false)
 const waNudge = ref(false)
 function sendWhatsApp() {
+  if (!waSent.value) track(props.business.id, 'whatsapp')
   waSent.value = true
   waNudge.value = false
   markWhatsApp()
@@ -376,6 +378,7 @@ async function send() {
   waNudge.value = false
   placed.value = data
   saveLast(data)
+  track(props.business.id, 'pedido')
 }
 
 // Fechar a janela depois do pedido feito equivale a "fazer outro pedido".

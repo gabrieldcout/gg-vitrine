@@ -17,6 +17,7 @@ import AgendaBooking from '@/components/public/AgendaBooking.vue'
 import CatalogOrder from '@/components/public/CatalogOrder.vue'
 import QueueJoin from '@/components/public/QueueJoin.vue'
 import { catalogWord } from '@/config/brand'
+import { trackVisit } from '@/lib/track'
 
 // preset: dados prontos (usado pela pré-visualização de desenvolvimento).
 const props = defineProps({ preset: { type: Object, default: null } })
@@ -47,6 +48,7 @@ onMounted(async () => {
     if (!data) { notFound.value = true; return }
     business.value = data
     document.title = `${data.name} · ${APP_NAME}`
+    trackVisit(data.id)
   }
   if (typeof IntersectionObserver === 'undefined') return
   io = new IntersectionObserver(
@@ -162,7 +164,7 @@ onBeforeUnmount(() => io?.disconnect())
         </section>
       </template>
 
-      <div class="powered">
+      <div v-if="!business.features?.includes('sem_marca')" class="powered">
         <span class="muted">Feito com</span> <AppLogo />
       </div>
       <p class="privacy-note">

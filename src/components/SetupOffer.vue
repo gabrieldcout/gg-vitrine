@@ -29,6 +29,7 @@ const link = computed(() => SUPPORT_WHATSAPP && waLink(SUPPORT_WHATSAPP,
         Mande as fotos e os preços pelo WhatsApp e deixamos {{ what }} prontos.
         <template v-if="SETUP_PRICE">Taxa única de {{ money(SETUP_PRICE) }}.</template>
         <template v-else>Valor combinado pelo WhatsApp.</template>
+        No plano Solo Plus a montagem é grátis.
       </small>
     </div>
     <a class="btn small setup-offer-btn" :href="link" target="_blank" rel="noopener">

@@ -2,12 +2,19 @@
 import { computed } from 'vue'
 import Icon from '@/components/Icon.vue'
 import { waLink } from '@/lib/whatsapp'
+import { track } from '@/lib/track'
 
 // big = botões grandes (cartão digital); senão, grid de tiles.
 const props = defineProps({
   business: { type: Object, required: true },
   big: { type: Boolean, default: false },
 })
+
+// Relatório de visitas: WhatsApp à parte, o resto como link (com o nome).
+function clicked(l) {
+  if (l.icon === 'whatsapp') track(props.business.id, 'whatsapp')
+  else track(props.business.id, 'link', l.label)
+}
 
 function href(link) {
   const url = link.url.trim()
@@ -32,12 +39,12 @@ const items = computed(() => {
 
 <template>
   <div v-if="items.length && big" class="link-list">
-    <a v-for="l in items" :key="l.id" :href="l.href" target="_blank" rel="noopener" class="btn large block link-big">
+    <a v-for="l in items" :key="l.id" :href="l.href" target="_blank" rel="noopener" class="btn large block link-big" @click="clicked(l)">
       <Icon :name="l.icon" />{{ l.label }}
     </a>
   </div>
   <div v-else-if="items.length" class="link-rail">
-    <a v-for="l in items" :key="l.id" :href="l.href" target="_blank" rel="noopener" class="link-tile">
+    <a v-for="l in items" :key="l.id" :href="l.href" target="_blank" rel="noopener" class="link-tile" @click="clicked(l)">
       <span class="link-ico"><Icon :name="l.icon" /></span>
       <span>{{ l.label }}</span>
     </a>

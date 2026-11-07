@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { supabase } from '@/lib/supabase'
 import { money, todayISO } from '@/lib/format'
 import { waLink } from '@/lib/whatsapp'
+import { track } from '@/lib/track'
 import { alarmUrl } from '@/lib/alarm'
 import Icon from '@/components/Icon.vue'
 import { ask } from '@/lib/confirm'
@@ -198,6 +199,7 @@ async function join() {
   })
   sending.value = false
   if (err) { error.value = err.message; loadQueue(); return }
+  track(props.business.id, 'fila')
   write(KEY.value, { id: data.id })
   write('gg-fila-cliente', { name: form.value.name.trim(), phone: form.value.phone.trim(), vehicle: form.value.vehicle })
   service.value = null

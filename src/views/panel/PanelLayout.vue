@@ -71,7 +71,7 @@ const showShareBar = computed(() =>
 const NAV_GROUPS = [
   { title: 'Agenda', match: ['/painel', '/painel/fila', '/painel/servicos', '/painel/profissionais', '/painel/horarios', '/painel/clientes', '/painel/bloqueios'] },
   { title: 'Loja', match: ['/painel/pedidos', '/painel/cardapio', '/painel/funcionamento', '/painel/impressao'] },
-  { title: 'Divulgar', match: ['/painel/lembretes', '/painel/galeria', '/painel/avaliacoes', '/painel/fidelidade', '/painel/cupons', '/painel/divulgar'] },
+  { title: 'Divulgar', match: ['/painel/lembretes', '/painel/galeria', '/painel/avaliacoes', '/painel/fidelidade', '/painel/cupons', '/painel/promocao', '/painel/visitas', '/painel/divulgar'] },
   { title: 'Conta', match: ['/painel/tutorial', '/painel/financeiro', '/painel/perfil', '/painel/assinatura'] },
 ]
 

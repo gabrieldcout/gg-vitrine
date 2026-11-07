@@ -20,6 +20,9 @@ const fileInput = ref(null)
 const MAX = 40
 const MAX_VIDEO_MB = 50
 
+// Vídeo é do Solo Plus (Equipe e Rede também). Vídeo que já estava na galeria continua.
+const canVideo = computed(() => biz.hasFeature('videos'))
+const accept = computed(() => `image/png,image/jpeg,image/webp${canVideo.value ? ',video/mp4,video/webm,video/quicktime' : ''}`)
 const atLimit = computed(() => photos.value.length >= MAX)
 const slotsLeft = computed(() => MAX - photos.value.length)
 
@@ -38,6 +41,9 @@ async function uploadFiles(fileList) {
     uploading.value++
     // Vídeo sobe como veio (sem compressão no navegador), com limite de tamanho.
     const video = file.type.startsWith('video/')
+    if (video && !canVideo.value) {
+      uploading.value--; error.value = 'Vídeo na galeria é do plano Solo Plus. Troque de plano em Assinatura pra enviar vídeos.'; continue
+    }
     if (video && file.size > MAX_VIDEO_MB * 1024 * 1024) {
       uploading.value--; error.value = `"${file.name}" tem mais de ${MAX_VIDEO_MB} MB. Corte o vídeo ou envie um mais curto.`; continue
     }
@@ -116,7 +122,7 @@ function openPicker() {
            @dragenter.prevent="dragover = true"
            @dragleave.prevent="dragover = false"
            @drop="onDrop">
-      <input ref="fileInput" type="file" accept="image/png,image/jpeg,image/webp,video/mp4,video/webm,video/quicktime" multiple
+      <input ref="fileInput" type="file" :accept="accept" multiple
              :disabled="atLimit" @change="onPick" />
       <div class="gl-drop-icon">
         <Icon :name="uploading > 0 ? 'image' : 'camera'" />
@@ -124,13 +130,14 @@ function openPicker() {
       <div class="gl-drop-info">
         <strong v-if="uploading > 0">Enviando {{ uploading === 1 ? '1 arquivo' : `${uploading} arquivos` }}... (vídeo pode demorar)</strong>
         <strong v-else-if="atLimit">Você atingiu o limite de {{ MAX }} fotos</strong>
-        <strong v-else>Arraste fotos e vídeos aqui ou clique pra escolher</strong>
-        <small v-if="!atLimit">Fotos PNG, JPG ou WEBP · vídeos MP4 ou MOV de até {{ MAX_VIDEO_MB }} MB · faltam {{ slotsLeft }} slots</small>
+        <strong v-else>{{ canVideo ? 'Arraste fotos e vídeos aqui ou clique pra escolher' : 'Arraste fotos aqui ou clique pra escolher' }}</strong>
+        <small v-if="!atLimit && canVideo">Fotos PNG, JPG ou WEBP · vídeos MP4 ou MOV de até {{ MAX_VIDEO_MB }} MB · faltam {{ slotsLeft }} slots</small>
+        <small v-else-if="!atLimit">Fotos PNG, JPG ou WEBP · faltam {{ slotsLeft }} slots · <RouterLink to="/painel/assinatura">vídeos no plano Solo Plus</RouterLink></small>
         <small v-else>Remova algumas pra enviar novas.</small>
       </div>
       <button v-if="!atLimit" type="button" class="btn" @click.prevent="openPicker">
         <Icon name="plus" />
-        Escolher fotos ou vídeos
+        {{ canVideo ? 'Escolher fotos ou vídeos' : 'Escolher fotos' }}
       </button>
     </label>
 
