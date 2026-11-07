@@ -102,7 +102,9 @@ function toggleOption(g, o) {
 }
 function groupRule(g) {
   const max = maxOf(g)
-  if (Number(g.min) > 0) return max === 1 ? 'Escolha 1 (obrigatório)' : max === Infinity ? 'Escolha pelo menos 1' : `Escolha de 1 até ${max}`
+  const min = Number(g.min) || 0
+  if (min && max === min) return `Escolha ${min} (obrigatório)`
+  if (min) return max === Infinity ? `Escolha pelo menos ${min}` : `Escolha de ${min} até ${max}`
   return max === Infinity ? 'Escolha quantos quiser' : `Selecione até ${max} ${max === 1 ? 'opção' : 'opções'}`
 }
 const missingGroups = computed(() => picker.value
@@ -554,7 +556,9 @@ function scrollTo(id) {
               <span><strong>{{ o.name }}</strong><small v-if="Number(o.price)">+ {{ money(o.price) }}</small></span>
             </button>
           </div>
-          <small v-if="picker.tried && missingGroups.includes(g)" class="pick-error">Escolha uma opção aqui pra continuar.</small>
+          <small v-if="picker.tried && missingGroups.includes(g)" class="pick-error">
+            {{ Number(g.min) > 1 ? `Escolha ${g.min} opções aqui pra continuar.` : 'Escolha uma opção aqui pra continuar.' }}
+          </small>
         </div>
 
         <div class="field" style="margin-top: 14px">

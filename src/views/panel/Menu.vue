@@ -41,7 +41,7 @@ const copyFrom = ref('')
 const otherItemsWithAddons = computed(() => items.value.filter((i) => i.id !== editing.value?.id && i.addon_groups?.length))
 
 function addGroup() {
-  editing.value.addon_groups.push({ id: newId(), name: '', required: false, max: 3, options: [{ id: newId(), name: '', price: '' }] })
+  editing.value.addon_groups.push({ id: newId(), name: '', min: 0, max: 3, options: [{ id: newId(), name: '', price: '' }] })
 }
 function addOption(g) { g.options.push({ id: newId(), name: '', price: '' }) }
 function copyAddons() {
@@ -49,7 +49,7 @@ function copyAddons() {
   if (!src) return
   // Ids novos: cada produto tem os seus.
   editing.value.addon_groups.push(...src.addon_groups.map((g) => ({
-    id: newId(), name: g.name, required: Number(g.min) > 0, max: g.max ?? '',
+    id: newId(), name: g.name, min: Number(g.min) || 0, max: g.max ?? '',
     options: g.options.map((o) => ({ id: newId(), name: o.name, price: o.price })),
   })))
   copyFrom.value = ''
@@ -65,14 +65,17 @@ function cleanGroups(groups) {
     if (!g.name.trim()) throw new Error('Dê um nome pra cada grupo de adicionais (ex.: Ingredientes adicionais).')
     if (!options.length) throw new Error(`O grupo "${g.name.trim()}" precisa de pelo menos uma opção.`)
     const max = g.max === '' || g.max == null ? null : Math.max(1, Math.min(Number(g.max), options.length))
-    out.push({ id: g.id, name: g.name.trim().slice(0, 60), min: g.required ? 1 : 0, max, options })
+    const min = Math.max(0, Math.min(Number(g.min) || 0, max ?? options.length, options.length))
+    out.push({ id: g.id, name: g.name.trim().slice(0, 60), min, max, options })
   }
   return out
 }
 function groupHint(g) {
   const n = g.options.filter((o) => o.name.trim()).length
   const max = g.max === '' || g.max == null ? null : Number(g.max)
-  if (g.required) return max === 1 ? 'O cliente escolhe 1 (obrigatório)' : `O cliente escolhe de 1 até ${max ?? n} (obrigatório)`
+  const min = Number(g.min) || 0
+  if (min && max === min) return `O cliente escolhe exatamente ${min} (obrigatório)`
+  if (min) return `O cliente escolhe de ${min} até ${max ?? n} (obrigatório)`
   return max ? `O cliente pode escolher até ${max}` : 'O cliente escolhe quantos quiser'
 }
 
@@ -135,7 +138,7 @@ function newItem(category) {
 function editItem(i) {
   const { id, category_id, name, description, price, photo_url, available } = i
   const addon_groups = (i.addon_groups ?? []).map((g) => ({
-    id: g.id, name: g.name, required: Number(g.min) > 0, max: g.max ?? '',
+    id: g.id, name: g.name, min: Number(g.min) || 0, max: g.max ?? '',
     options: g.options.map((o) => ({ ...o })),
   }))
   editing.value = { id, category_id, name, description, price, photo_url, available, addon_groups, featured: !!i.featured }
@@ -253,7 +256,8 @@ async function uploadPhoto(event) {
             <div class="field" style="flex: 2 1 220px"><label>Nome do grupo</label><input v-model="g.name" maxlength="60" placeholder="Ex.: Ingredientes adicionais" /></div>
             <div class="field" style="flex: 1 1 140px"><label>Máximo de escolhas</label><input v-model="g.max" type="number" min="1" placeholder="Sem limite" /></div>
           </div>
-          <label class="addon-req"><input v-model="g.required" type="checkbox" /> Obrigatório escolher pelo menos 1</label>
+          <div class="field addon-min"><label>Mínimo de escolhas <small>(0 = opcional · 2 = "escolha 2 sabores")</small></label>
+            <input v-model="g.min" type="number" min="0" placeholder="0" /></div>
           <small class="muted addon-hint">{{ groupHint(g) }}</small>
           <div v-for="(o, oi) in g.options" :key="o.id" class="addon-option">
             <input v-model="o.name" maxlength="60" placeholder="Ex.: Cheddar" aria-label="Nome do adicional" />
@@ -361,7 +365,7 @@ async function uploadPhoto(event) {
 .addons { margin: 14px 0; padding: 14px; border-radius: 14px; border: 1px dashed var(--border); display: grid; gap: 12px; }
 .addons-head small { display: block; margin-top: 2px; }
 .addon-group { padding: 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); }
-.addon-req { display: flex; gap: 8px; align-items: center; font-size: 0.9rem; }
+.addon-min { max-width: 260px; margin-bottom: 0; }
 .addon-hint { display: block; margin: 4px 0 8px; }
 .addon-option { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
 .addon-option > input { flex: 1; min-width: 0; }
