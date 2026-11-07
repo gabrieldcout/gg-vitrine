@@ -31,6 +31,11 @@ const itemsByCategory = computed(() => {
 
 // Adicionais (migration 0032): grupos com opções e preço, dentro do produto.
 const hasAddons = ref(false)
+// Destaques (migration 0033): faixa no topo do cardápio da vitrine.
+const hasFeatured = ref(false)
+function toggleFeatured(i) {
+  run(supabase.from('menu_items').update({ featured: !i.featured }).eq('id', i.id))
+}
 const newId = () => (crypto.randomUUID?.() ?? `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`)
 const copyFrom = ref('')
 const otherItemsWithAddons = computed(() => items.value.filter((i) => i.id !== editing.value?.id && i.addon_groups?.length))
@@ -74,6 +79,7 @@ function groupHint(g) {
 async function load() {
   const bid = biz.business.id
   hasAddons.value = !(await supabase.from('menu_items').select('addon_groups').limit(1)).error
+  hasFeatured.value = !(await supabase.from('menu_items').select('featured').limit(1)).error
   categories.value = unwrap(await supabase.from('menu_categories').select('*')
     .eq('business_id', bid).order('sort_order').order('name'))
   items.value = unwrap(await supabase.from('menu_items').select('*')
@@ -122,7 +128,7 @@ async function moveCategory(index, delta) {
 
 // ---- Produtos ----
 function newItem(category) {
-  editing.value = { id: null, category_id: category.id, name: '', description: '', price: '', photo_url: null, available: true, addon_groups: [] }
+  editing.value = { id: null, category_id: category.id, name: '', description: '', price: '', photo_url: null, available: true, addon_groups: [], featured: false }
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
@@ -132,13 +138,14 @@ function editItem(i) {
     id: g.id, name: g.name, required: Number(g.min) > 0, max: g.max ?? '',
     options: g.options.map((o) => ({ ...o })),
   }))
-  editing.value = { id, category_id, name, description, price, photo_url, available, addon_groups }
+  editing.value = { id, category_id, name, description, price, photo_url, available, addon_groups, featured: !!i.featured }
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 async function saveItem() {
-  const { id, addon_groups, ...fields } = editing.value
+  const { id, addon_groups, featured, ...fields } = editing.value
   const payload = { ...fields, price: Number(fields.price), business_id: biz.business.id }
+  if (hasFeatured.value) payload.featured = featured
   if (hasAddons.value) {
     try { payload.addon_groups = cleanGroups(addon_groups) } catch (e) { error.value = e.message; return }
   }
@@ -243,7 +250,10 @@ async function uploadPhoto(event) {
       </div>
 
       <div class="spread">
-        <label><input v-model="editing.available" type="checkbox" /> {{ T.available }}</label>
+        <div class="item-flags">
+          <label><input v-model="editing.available" type="checkbox" /> {{ T.available }}</label>
+          <label v-if="hasFeatured"><input v-model="editing.featured" type="checkbox" /> Mostrar em Destaques (topo da vitrine)</label>
+        </div>
         <button class="btn" :disabled="uploading">{{ editing.id ? 'Salvar' : `Adicionar ${T.item}` }}</button>
       </div>
     </form>
@@ -285,11 +295,14 @@ async function uploadPhoto(event) {
       <div style="flex: 1; min-width: 0">
         <strong>{{ i.name }}</strong>
         <span v-if="!i.available" class="badge red" style="margin-left: 6px">{{ T.offBadge }}</span>
+        <span v-if="i.featured" class="badge yellow" style="margin-left: 6px">Destaque</span>
         <span v-if="i.addon_groups?.length" class="badge" style="margin-left: 6px">com adicionais</span>
         <div class="muted desc">{{ i.description }}</div>
       </div>
       <strong class="price">{{ money(i.price) }}</strong>
       <div class="chips actions">
+        <button v-if="hasFeatured" class="btn small secondary" :title="i.featured ? 'Tirar dos destaques' : 'Pôr nos destaques'"
+                @click="toggleFeatured(i)">{{ i.featured ? '★ Destaque' : '☆ Destacar' }}</button>
         <button class="btn small secondary" @click="toggleAvailable(i)">{{ i.available ? T.off : T.on }}</button>
         <button class="btn small secondary" @click="editItem(i)">Editar</button>
         <button class="btn small secondary" title="Excluir" @click="removeItem(i)">✕</button>
@@ -318,5 +331,6 @@ async function uploadPhoto(event) {
 .addon-price span { color: var(--muted); font-size: 0.85rem; white-space: nowrap; }
 .addon-price input { min-width: 0; }
 .addon-copy { max-width: 280px; }
+.item-flags { display: grid; gap: 6px; }
 @media (max-width: 640px) { .actions { width: 100%; } }
 </style>

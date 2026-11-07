@@ -12,6 +12,8 @@ const store = computed(() => props.business.store)
 const tz = computed(() => props.business.timezone)
 const categories = computed(() => (props.business.menu ?? []).filter((c) => c.items.length))
 const allItems = computed(() => categories.value.flatMap((c) => c.items))
+// Destaques (marcados em Produtos): faixa no topo do cardápio.
+const featured = computed(() => allItems.value.filter((i) => i.featured && i.available))
 const hasCoupons = computed(() => props.business.features.includes('cupons'))
 
 // Reavalia aberto/fechado a cada minuto, para quem deixa a página aberta.
@@ -293,7 +295,46 @@ const lastDismissed = ref(false)
 const cartSignature = () => cartLines.value.map((l) => `${l.key}:${l.qty}`).sort().join(',')
 const timeOf = (ms) => new Date(ms).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: tz.value })
 
+// ---------------- Pedir de novo ----------------
+// O último pedido fica guardado neste celular (sem login) pra repetir com um
+// toque. Só volta pra sacola o que ainda existe e está disponível.
+const REORDER_KEY = `gg-vitrine-pedir-de-novo-${props.business.id}`
+function readReorder() {
+  try {
+    const v = JSON.parse(localStorage.getItem(REORDER_KEY))
+    return v && Date.now() - v.at < 120 * 864e5 && v.lines?.length ? v : null
+  } catch { return null }
+}
+const reorder = ref(readReorder())
+const reorderLines = computed(() => (reorder.value?.lines ?? [])
+  .map((l) => {
+    const item = itemsById.value[l.itemId]
+    if (!item || !item.available) return null
+    // Adicional que saiu do produto não volta.
+    const addons = addonObjs(item, l.addons ?? []).map((a) => a.id)
+    return { ...l, item, addons }
+  }).filter(Boolean))
+const reorderSummary = computed(() => reorderLines.value.map((l) => `${l.qty}x ${l.item.name}`).join(', '))
+const reorderDate = computed(() => reorder.value && new Date(reorder.value.at)
+  .toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: tz.value }))
+function orderAgain() {
+  if (!canOrder.value) return
+  const next = {}
+  for (const l of reorderLines.value) {
+    const key = l.addons.length || l.note ? `${l.itemId}|${l.addons.join(',')}|${l.note ?? ''}` : l.itemId
+    next[key] = { itemId: l.itemId, qty: l.qty, addons: l.addons, note: l.note ?? '' }
+  }
+  cart.value = next
+  checkoutOpen.value = true
+}
+function saveReorder() {
+  const v = { at: Date.now(), lines: Object.values(cart.value).map((c) => ({ itemId: c.itemId, qty: c.qty, addons: c.addons, note: c.note })) }
+  reorder.value = v
+  try { localStorage.setItem(REORDER_KEY, JSON.stringify(v)) } catch { /* sem armazenamento local */ }
+}
+
 function saveLast(order) {
+  saveReorder()
   const v = { id: order.id, number: order.number, total: order.total, at: Date.now(), sig: cartSignature(), link: placedLink.value }
   lastOrder.value = v
   lastDismissed.value = true   // acabou de fazer: o aviso só aparece quando ele voltar
@@ -392,6 +433,32 @@ function scrollTo(id) {
     <p v-if="store.delivery_enabled && store.delivery_area" class="muted" style="font-size: 0.88rem">
       Entregamos em: {{ store.delivery_area }}
     </p>
+
+    <div v-if="reorderLines.length && (!lastOrder || lastDismissed) && !cartCount" class="reorder card">
+      <div class="reorder-text">
+        <strong>Seu último pedido · {{ reorderDate }}</strong>
+        <small class="muted">{{ reorderSummary }}</small>
+      </div>
+      <button type="button" class="btn small" :disabled="!canOrder" @click="orderAgain">
+        <Icon name="bag" style="width: 15px; height: 15px" />Pedir de novo
+      </button>
+    </div>
+
+    <section v-if="featured.length" class="featured">
+      <h2>Destaques</h2>
+      <div class="featured-row">
+        <button v-for="i in featured" :key="i.id" type="button" class="featured-card" :disabled="!canOrder" @click="add(i)">
+          <img v-if="i.photo_url" :src="i.photo_url" :alt="i.name" loading="lazy" />
+          <div v-else class="featured-noimg"><Icon name="utensils" /></div>
+          <span class="featured-name">{{ i.name }}</span>
+          <span class="featured-foot">
+            <span class="price">{{ money(i.price) }}</span>
+            <span class="featured-add" aria-hidden="true"><Icon name="plus" /></span>
+          </span>
+          <span v-if="qtyOf(i)" class="featured-qty">{{ qtyOf(i) }}</span>
+        </button>
+      </div>
+    </section>
 
     <nav v-if="categories.length > 1" class="cat-nav">
       <button v-for="c in categories" :key="c.id" class="chip" @click="scrollTo(c.id)">{{ c.name }}</button>
@@ -671,6 +738,27 @@ function scrollTo(id) {
 .line { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
 .totals { display: grid; gap: 6px; padding: 14px 0; margin: 6px 0 14px; border-top: 1px solid var(--border); }
 .totals .total { font-size: 1.25rem; font-weight: 800; }
+.reorder { display: flex; gap: 12px; align-items: center; justify-content: space-between; margin: 0 0 16px; border-left: 3px solid var(--brand); }
+.reorder-text { min-width: 0; }
+.reorder-text strong { display: block; }
+.reorder-text small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reorder .btn { flex-shrink: 0; }
+.featured { margin: 0 0 18px; }
+.featured h2 { margin: 0 0 10px; }
+.featured-row { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 6px; scroll-snap-type: x mandatory; }
+.featured-card { position: relative; flex: 0 0 150px; scroll-snap-align: start; display: flex; flex-direction: column; text-align: left; padding: 0;
+  border-radius: 16px; overflow: hidden; background: var(--surface); border: 1px solid var(--border); color: var(--text); font: inherit; cursor: pointer; }
+.featured-card:disabled { cursor: default; }
+.featured-card img, .featured-noimg { width: 100%; height: 120px; object-fit: cover; display: block; }
+.featured-noimg { display: grid; place-items: center; color: var(--muted); background: rgba(255, 255, 255, 0.04); }
+.featured-noimg svg { width: 28px; height: 28px; }
+.featured-name { padding: 10px 10px 4px; font-weight: 700; font-size: 0.92rem; line-height: 1.25; }
+.featured-foot { display: flex; align-items: center; justify-content: space-between; padding: 0 10px 10px; margin-top: auto; }
+.featured-add { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+  background: linear-gradient(120deg, var(--brand), var(--brand-strong)); color: var(--brand-contrast); }
+.featured-add svg { width: 15px; height: 15px; }
+.featured-qty { position: absolute; top: 8px; right: 8px; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 999px;
+  display: grid; place-items: center; font-size: 0.8rem; font-weight: 800; background: var(--brand); color: var(--brand-contrast); }
 .line-extra { display: block; color: var(--muted); font-size: 0.8rem; }
 .picker { padding-top: 0; }
 .picker:not(:has(.picker-photo)) { padding-top: 22px; }

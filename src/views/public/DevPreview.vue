@@ -46,7 +46,7 @@ const cardapio = {
     zones: [{ id: 'z1', name: 'Centro', fee: 5 }, { id: 'z2', name: 'Vila Nova', fee: 8 }, { id: 'z3', name: 'Jardim América', fee: 12 }] },
   menu: [
     { id: 'c1', name: 'Lanches', items: [
-      { id: 'i1', name: 'X-burguer', description: 'Pão, hambúrguer 150g, queijo, alface e tomate.', price: 28, photo_url: photo('burger'), available: true,
+      { id: 'i1', name: 'X-burguer', description: 'Pão, hambúrguer 150g, queijo, alface e tomate.', price: 28, photo_url: photo('burger'), available: true, featured: true,
         addon_groups: [
           { id: 'g1', name: 'Ponto da carne', min: 1, max: 1, options: [{ id: 'o1', name: 'Mal passada', price: 0 }, { id: 'o2', name: 'Ao ponto', price: 0 }, { id: 'o3', name: 'Bem passada', price: 0 }] },
           { id: 'g2', name: 'Ingredientes adicionais', min: 0, max: 3, options: [{ id: 'o4', name: 'Cheddar', price: 3 }, { id: 'o5', name: 'Catupiry', price: 3 }, { id: 'o6', name: 'Bacon', price: 4 }, { id: 'o7', name: 'Carne extra', price: 6 }] },
@@ -54,7 +54,7 @@ const cardapio = {
       { id: 'i2', name: 'X-bacon', description: null, price: 32, photo_url: null, available: false },
     ] },
     { id: 'c2', name: 'Bebidas', items: [
-      { id: 'i3', name: 'Refrigerante lata', description: null, price: 6, photo_url: null, available: true },
+      { id: 'i3', name: 'Refrigerante lata', description: null, price: 6, photo_url: null, available: true, featured: true },
     ] },
   ],
 }
