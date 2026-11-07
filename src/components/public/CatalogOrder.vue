@@ -224,27 +224,54 @@ function address() {
   return [`${f.street}, ${f.number} - ${f.district}`, f.reference && `Ref.: ${f.reference}`].filter(Boolean).join(' · ')
 }
 
+// Mensagem do pedido no WhatsApp da loja, no formato que o lojista já conhece:
+// origem e número, data/hora, tipo de serviço, cliente, produtos, valores e
+// um bloco de pagamento.
 function buildMessage(order) {
   const f = form.value
-  const lines = [`*Pedido #${order.number}: ${props.business.name}*`, '']
+  const now = new Date()
+  const day = now.toLocaleDateString('pt-BR', { timeZone: tz.value })
+  const hour = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: tz.value })
+  const delivery = f.mode === 'entrega'
+  const lines = [
+    `👋 Pedido feito pela vitrine: ${location.host}/${props.business.slug}`,
+    `*Pedido #${order.number}*`,
+    `🗓️ ${day} ⏰ ${hour}`,
+    '',
+    `*Tipo de serviço: ${delivery ? 'Delivery' : 'Retirada no local'}*`,
+    '',
+    `Nome: ${f.name}`,
+    `Telefone: ${f.phone}`,
+  ]
+  if (delivery) lines.push(`Endereço: ${address()}`)
+
+  lines.push('', '📝 *Produtos*')
   for (const l of order.items) {
-    lines.push(`${l.qty}x ${l.name}: ${money(l.total)}`)
+    lines.push(`*${l.qty}x ${l.name}*  ${money(l.total)}`)
     for (const a of l.addons ?? []) lines.push(`   + ${a.name}${Number(a.price) ? ` (${money(a.price)})` : ''}`)
     if (l.note) lines.push(`   Obs.: ${l.note}`)
   }
+
   lines.push('', `Subtotal: ${money(order.subtotal)}`)
-  if (order.fee_pending) lines.push('Entrega: *a combinar* (meu bairro não está na lista)')
-  else if (Number(order.delivery_fee)) lines.push(`Entrega: ${money(order.delivery_fee)}`)
   if (Number(order.discount)) lines.push(`Desconto (${order.coupon}): -${money(order.discount)}`)
+  if (delivery) {
+    if (order.fee_pending) lines.push('Delivery: *a combinar* (meu bairro não está na lista)')
+    else lines.push(`Delivery: ${Number(order.delivery_fee) ? money(order.delivery_fee) : 'grátis'}`)
+  }
   if (Number(order.card_fee)) lines.push(`Acréscimo do cartão (${pctLabel(cardFeePct.value)}): ${money(order.card_fee)}`)
-  lines.push(`*Total: ${money(order.total)}*`, '')
-  lines.push(`*Cliente:* ${f.name}`, `*Telefone:* ${f.phone}`)
-  lines.push(f.mode === 'entrega' ? `*Entregar em:* ${address()}` : '*Retirada no local*')
-  let payment = order.payment ?? paymentLabel.value
-  if (f.payment === 'dinheiro' && f.change) payment += ` (troco para ${money(f.change)})`
-  lines.push(`*Pagamento:* ${payment}`)
+  lines.push(`*Total: ${money(order.total)}*${order.fee_pending ? ' + delivery' : ''}`)
+
+  lines.push('', '💲 *Pagamento*', 'Estado do pagamento: Não pago', `*Total a pagar: ${money(order.total)}*`)
+  lines.push(order.payment ?? paymentLabel.value)
+  if (Number(order.card_fee)) lines.push(`${pctLabel(cardFeePct.value)} de acréscimo no cartão`)
+  if (f.payment === 'dinheiro') {
+    const change = Number(f.change)
+    lines.push(change ? `Troco para ${money(change)} (troco de ${money(change - Number(order.total))})` : 'Não precisa de troco')
+  }
   if (f.payment === 'pix' && pixKey.value) lines.push('Vou pagar pela chave PIX da loja e mandar o comprovante aqui.')
-  if (f.notes) lines.push(`*Observações:* ${f.notes}`)
+
+  if (f.notes) lines.push('', `*Observações:* ${f.notes}`)
+  lines.push('', '👉 Por favor, confirme o recebimento do meu pedido.')
   return lines.join('\n')
 }
 
