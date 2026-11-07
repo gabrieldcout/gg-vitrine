@@ -347,6 +347,7 @@ function customerLink(o) {
           <strong style="font-size: 1.15rem">{{ money(o.total) }}</strong>
           <small v-if="o.fee_pending"> + entrega a combinar</small>
           <small v-if="Number(o.discount)"> (desconto {{ money(o.discount) }} · {{ o.coupon_code }})</small>
+          <small v-if="Number(o.card_fee)"> (acréscimo do cartão {{ money(o.card_fee) }})</small>
         </div>
         <div class="chips">
           <button class="btn small secondary" title="Imprimir comanda" @click="printOrder(o, biz.business)">

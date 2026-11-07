@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { supabase, unwrap } from '@/lib/supabase'
 import { useBusiness } from '@/lib/business'
 import { WEEKDAYS } from '@/lib/format'
@@ -83,6 +83,32 @@ async function savePix() {
   if (err) { error.value = err.message; return }
   await biz.reload()
   flash(pix.value.key.trim() ? 'Chave PIX salva.' : 'Chave PIX removida.')
+}
+
+// Formas de pagamento aceitas na vitrine e acréscimo do cartão (migration 0031).
+const PAY_OPTIONS = [
+  { key: 'pix', label: 'PIX' },
+  { key: 'dinheiro', label: 'Dinheiro', hint: 'o cliente informa se precisa de troco' },
+  { key: 'debito', label: 'Cartão de débito', hint: 'na maquininha, na entrega ou retirada' },
+  { key: 'credito', label: 'Cartão de crédito', hint: 'na maquininha, na entrega ou retirada' },
+]
+const hasPayments = 'payment_methods' in biz.business
+const payments = ref({
+  methods: [...(biz.business.payment_methods ?? ['pix', 'dinheiro', 'debito', 'credito'])],
+  card_fee_pct: Number(biz.business.card_fee_pct ?? 0),
+})
+const acceptsCard = computed(() => payments.value.methods.some((m) => m === 'debito' || m === 'credito'))
+async function savePayments() {
+  error.value = ''
+  const methods = PAY_OPTIONS.map((o) => o.key).filter((k) => payments.value.methods.includes(k))
+  if (!methods.length) { error.value = 'Escolha pelo menos uma forma de pagamento.'; return }
+  const pct = Number(payments.value.card_fee_pct || 0)
+  if (pct < 0 || pct > 30) { error.value = 'O acréscimo do cartão precisa ficar entre 0% e 30%.'; return }
+  const { error: err } = await supabase.from('businesses')
+    .update({ payment_methods: methods, card_fee_pct: pct }).eq('id', biz.business.id)
+  if (err) { error.value = err.message; return }
+  await biz.reload()
+  flash('Formas de pagamento salvas.')
 }
 
 async function saveZones() {
@@ -195,6 +221,24 @@ async function saveHours() {
     <button class="btn">Salvar</button>
   </form>
 
+  <!-- Formas de pagamento -->
+  <form v-if="hasPayments" class="card" @submit.prevent="savePayments">
+    <h3>Formas de pagamento</h3>
+    <p class="muted">Escolha como o cliente pode pagar. Só as marcadas aparecem na vitrine.</p>
+    <div class="pay-options">
+      <label v-for="o in PAY_OPTIONS" :key="o.key" class="pay-opt">
+        <input v-model="payments.methods" type="checkbox" :value="o.key" />
+        <span><strong>{{ o.label }}</strong><small v-if="o.hint" class="muted">{{ o.hint }}</small></span>
+      </label>
+    </div>
+    <div v-if="acceptsCard" class="field" style="max-width: 260px; margin-top: 12px">
+      <label>Acréscimo no cartão (%) <small>(0 = sem acréscimo)</small></label>
+      <input v-model="payments.card_fee_pct" type="number" min="0" max="30" step="0.5" />
+      <small class="muted">Somado ao total quando o cliente escolhe débito ou crédito. Ex.: 5% em R$ 40,00 = R$ 2,00.</small>
+    </div>
+    <button class="btn">Salvar formas de pagamento</button>
+  </form>
+
   <!-- PIX -->
   <form v-if="hasPixColumn" class="card" @submit.prevent="savePix">
     <h3>Pagamento por PIX</h3>
@@ -252,4 +296,9 @@ async function saveHours() {
 .other-zone { display: flex; gap: 10px; align-items: flex-start; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); cursor: pointer; }
 .other-zone input { margin-top: 3px; }
 .other-zone small { display: block; margin-top: 2px; }
+.pay-options { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin: 10px 0 4px; }
+.pay-opt { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); cursor: pointer; }
+.pay-opt input { margin-top: 3px; flex-shrink: 0; }
+.pay-opt strong { display: block; font-size: 0.92rem; }
+.pay-opt small { display: block; font-size: 0.78rem; }
 </style>

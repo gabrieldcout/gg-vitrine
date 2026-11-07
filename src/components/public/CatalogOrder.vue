@@ -120,10 +120,28 @@ const deliveryFee = computed(() => {
   return Number(store.value.delivery_fee)
 })
 const discount = computed(() => Number(coupon.value?.discount ?? 0))
-const total = computed(() => Math.max(subtotal.value + deliveryFee.value - discount.value, 0))
+const baseTotal = computed(() => Math.max(subtotal.value + deliveryFee.value - discount.value, 0))
 const belowMinimum = computed(() => Number(store.value.min_order) > 0 && subtotal.value < Number(store.value.min_order))
 
-const PAYMENTS = { pix: 'PIX', dinheiro: 'Dinheiro', cartao: 'Cartão na entrega/retirada' }
+// Formas de pagamento que a loja aceita (Funcionamento). Antes da migration
+// 0031 a loja não manda a lista e vale o jeito antigo (cartão sem acréscimo).
+const newPayments = computed(() => Array.isArray(store.value.payment_methods))
+const ALL_PAYMENTS = { pix: 'PIX', dinheiro: 'Dinheiro', debito: 'Cartão de débito', credito: 'Cartão de crédito' }
+const PAYMENTS = computed(() => newPayments.value
+  ? Object.fromEntries(store.value.payment_methods.filter((k) => ALL_PAYMENTS[k]).map((k) => [k, ALL_PAYMENTS[k]]))
+  : { pix: 'PIX', dinheiro: 'Dinheiro', cartao: 'Cartão na entrega/retirada' })
+watch(PAYMENTS, (list) => { if (!list[form.value.payment]) form.value.payment = Object.keys(list)[0] }, { immediate: true })
+const isCard = computed(() => ['debito', 'credito'].includes(form.value.payment))
+const cardFeePct = computed(() => (newPayments.value ? Number(store.value.card_fee_pct) || 0 : 0))
+// Mesma conta do banco (place_order): acréscimo sobre o total, arredondado.
+const cardFee = computed(() => (isCard.value ? Math.round(baseTotal.value * cardFeePct.value) / 100 : 0))
+const total = computed(() => baseTotal.value + cardFee.value)
+const pctLabel = (n) => `${String(Number(n)).replace('.', ',')}%`
+const paymentLabel = computed(() => {
+  const label = PAYMENTS.value[form.value.payment]
+  if (!isCard.value) return label
+  return `${label} (maquininha na ${form.value.mode === 'entrega' ? 'entrega' : 'retirada'})`
+})
 
 // Chave PIX da loja: o cliente paga direto pro lojista e manda o comprovante no WhatsApp.
 const pixKey = computed(() => store.value.pix_key?.trim() || '')
@@ -155,10 +173,11 @@ function buildMessage(order) {
   if (order.fee_pending) lines.push('Entrega: *a combinar* (meu bairro não está na lista)')
   else if (Number(order.delivery_fee)) lines.push(`Entrega: ${money(order.delivery_fee)}`)
   if (Number(order.discount)) lines.push(`Desconto (${order.coupon}): -${money(order.discount)}`)
+  if (Number(order.card_fee)) lines.push(`Acréscimo do cartão (${pctLabel(cardFeePct.value)}): ${money(order.card_fee)}`)
   lines.push(`*Total: ${money(order.total)}*`, '')
   lines.push(`*Cliente:* ${f.name}`, `*Telefone:* ${f.phone}`)
   lines.push(f.mode === 'entrega' ? `*Entregar em:* ${address()}` : '*Retirada no local*')
-  let payment = PAYMENTS[f.payment]
+  let payment = order.payment ?? paymentLabel.value
   if (f.payment === 'dinheiro' && f.change) payment += ` (troco para ${money(f.change)})`
   lines.push(`*Pagamento:* ${payment}`)
   if (f.payment === 'pix' && pixKey.value) lines.push('Vou pagar pela chave PIX da loja e mandar o comprovante aqui.')
@@ -224,6 +243,9 @@ function saveLast(order) {
 async function send() {
   error.value = ''
   if (belowMinimum.value) { error.value = `O pedido mínimo é ${money(store.value.min_order)}.`; return }
+  if (form.value.payment === 'dinheiro' && Number(form.value.change) && Number(form.value.change) < total.value) {
+    error.value = `O troco precisa ser para um valor maior que o total (${money(total.value)}).`; return
+  }
   const last = readLast()
   if (last && last.sig === cartSignature() &&
       !confirm(`Você já fez um pedido igual a esse (#${last.number}) às ${timeOf(last.at)}.
@@ -242,7 +264,8 @@ async function send() {
     p_items: cartLines.value.map((l) => ({ id: l.id, qty: l.qty })),
     p_name: f.name, p_phone: f.phone, p_mode: f.mode,
     p_address: f.mode === 'entrega' ? address() : null,
-    p_payment: PAYMENTS[f.payment], p_change: f.payment === 'dinheiro' && f.change ? Number(f.change) : null,
+    p_payment: paymentLabel.value, p_change: f.payment === 'dinheiro' && f.change ? Number(f.change) : null,
+    ...(newPayments.value ? { p_method: f.payment } : {}),
     p_notes: f.notes || null, p_coupon: coupon.value?.code ?? null,
     p_zone: f.mode === 'entrega' && hasZones.value && !otherZone.value ? f.zone : null,
   })
@@ -443,9 +466,15 @@ function scrollTo(id) {
             <div class="pix-key"><code>{{ pixKey }}</code><button type="button" class="btn small" @click="copyPix">{{ pixCopied ? 'Copiado!' : 'Copiar chave' }}</button></div>
           </div>
           <div v-if="form.payment === 'dinheiro'" class="field" style="max-width: 220px">
-            <label>Troco para <small>(opcional)</small></label>
+            <label>Troco para quanto? <small>(deixe vazio se não precisar)</small></label>
             <input v-model="form.change" type="number" min="0" step="0.01" placeholder="Ex.: 100" />
+            <small v-if="Number(form.change) && Number(form.change) < total" style="color: var(--danger)">O valor do troco é menor que o total ({{ money(total) }}).</small>
+            <small v-else-if="Number(form.change) > total" class="muted">Seu troco: {{ money(Number(form.change) - total) }}</small>
           </div>
+          <p v-if="isCard" class="card-note">
+            Pague no cartão na maquininha, {{ form.mode === 'entrega' ? 'na hora da entrega' : 'na retirada' }}.
+            <template v-if="cardFeePct">Pagamento no cartão tem acréscimo de {{ pctLabel(cardFeePct) }}.</template>
+          </p>
           <div class="field">
             <label>Observações <small>(opcional)</small></label>
             <input v-model="form.notes" placeholder="Ex.: sem cebola, bem passado" />
@@ -467,6 +496,7 @@ function scrollTo(id) {
               <span>{{ otherZone ? 'a combinar' : hasZones && !zone ? 'escolha o bairro' : money(deliveryFee) }}</span>
             </div>
             <div v-if="discount" class="spread"><span class="muted">Desconto</span><span style="color: var(--success)">-{{ money(discount) }}</span></div>
+            <div v-if="cardFee" class="spread"><span class="muted">Acréscimo do cartão ({{ pctLabel(cardFeePct) }})</span><span>{{ money(cardFee) }}</span></div>
             <div class="spread total"><span>Total</span><span class="gradient-text">{{ money(total) }}</span></div>
             <small v-if="form.mode === 'entrega' && otherZone" class="muted">+ taxa de entrega, que a loja informa pelo WhatsApp</small>
           </div>
@@ -523,6 +553,7 @@ function scrollTo(id) {
 .line { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
 .totals { display: grid; gap: 6px; padding: 14px 0; margin: 6px 0 14px; border-top: 1px solid var(--border); }
 .totals .total { font-size: 1.25rem; font-weight: 800; }
+.card-note { margin: 0 0 14px; padding: 10px 12px; border-radius: 12px; font-size: 0.86rem; background: var(--surface); border: 1px solid var(--border); }
 .pix-box { margin: 4px 0 14px; padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(50, 188, 173, 0.45); background: rgba(50, 188, 173, 0.1); text-align: left; }
 .pix-box small { display: block; color: var(--silver); font-size: 0.84rem; line-height: 1.4; }
 .pix-key { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
