@@ -6,8 +6,9 @@
 --
 -- A loja escolhe em Funcionamento quais formas aceita (PIX, dinheiro,
 -- cartão de débito, cartão de crédito) e o acréscimo do cartão (%). Cartão
--- é pago na maquininha, na entrega ou na retirada. O acréscimo é calculado
--- aqui no banco e entra no total do pedido.
+-- é pago na maquininha, na entrega ou na retirada. O acréscimo vale sobre a
+-- compra (produtos com desconto, sem a taxa de entrega), é calculado aqui no
+-- banco e entra no total do pedido.
 -- =====================================================================
 
 alter table businesses
@@ -31,7 +32,7 @@ alter table orders add column if not exists card_fee numeric(10,2) not null defa
 -- Recria pra não ficar duas versões da função.
 -- ---------------------------------------------------------------------
 drop function if exists place_order(uuid, jsonb, text, text, text, text, text, numeric, text, text, uuid);
-create function place_order(p_business uuid, p_items jsonb, p_name text, p_phone text, p_mode text,
+create or replace function place_order(p_business uuid, p_items jsonb, p_name text, p_phone text, p_mode text,
                                        p_address text default null, p_payment text default 'pix',
                                        p_change numeric default null, p_notes text default null,
                                        p_coupon text default null, p_zone uuid default null,
@@ -128,7 +129,8 @@ begin
       else 'PIX' end;
     if p_method in ('debito', 'credito') then
       v_payment := v_payment || case when p_mode = 'entrega' then ' (maquininha na entrega)' else ' (maquininha na retirada)' end;
-      v_card_fee := round(greatest(v_subtotal + v_fee - v_discount, 0) * b.card_fee_pct / 100, 2);
+      -- Acréscimo em cima da compra (produtos, já com desconto), sem a entrega.
+      v_card_fee := round(greatest(v_subtotal - v_discount, 0) * b.card_fee_pct / 100, 2);
     end if;
     if p_method <> 'dinheiro' then v_change := null; end if;
   end if;

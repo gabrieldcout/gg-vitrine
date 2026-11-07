@@ -133,8 +133,10 @@ const PAYMENTS = computed(() => newPayments.value
 watch(PAYMENTS, (list) => { if (!list[form.value.payment]) form.value.payment = Object.keys(list)[0] }, { immediate: true })
 const isCard = computed(() => ['debito', 'credito'].includes(form.value.payment))
 const cardFeePct = computed(() => (newPayments.value ? Number(store.value.card_fee_pct) || 0 : 0))
-// Mesma conta do banco (place_order): acréscimo sobre o total, arredondado.
-const cardFee = computed(() => (isCard.value ? Math.round(baseTotal.value * cardFeePct.value) / 100 : 0))
+// Mesma conta do banco (place_order): acréscimo sobre a compra (produtos com
+// desconto), sem a taxa de entrega, arredondado.
+const cardFee = computed(() => (isCard.value
+  ? Math.round(Math.max(subtotal.value - discount.value, 0) * cardFeePct.value) / 100 : 0))
 const total = computed(() => baseTotal.value + cardFee.value)
 const pctLabel = (n) => `${String(Number(n)).replace('.', ',')}%`
 const paymentLabel = computed(() => {

@@ -234,7 +234,7 @@ async function saveHours() {
     <div v-if="acceptsCard" class="field" style="max-width: 260px; margin-top: 12px">
       <label>Acréscimo no cartão (%) <small>(0 = sem acréscimo)</small></label>
       <input v-model="payments.card_fee_pct" type="number" min="0" max="30" step="0.5" />
-      <small class="muted">Somado ao total quando o cliente escolhe débito ou crédito. Ex.: 5% em R$ 40,00 = R$ 2,00.</small>
+      <small class="muted">Vale sobre a compra (os produtos), sem contar a taxa de entrega. Ex.: 5% em R$ 40,00 de produtos = R$ 2,00.</small>
     </div>
     <button class="btn">Salvar formas de pagamento</button>
   </form>
