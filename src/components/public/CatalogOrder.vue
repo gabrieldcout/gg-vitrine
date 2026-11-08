@@ -372,8 +372,38 @@ function saveLast(order) {
   try { localStorage.setItem(LAST_KEY, JSON.stringify(v)) } catch { /* sem armazenamento local */ }
 }
 
+// Campos obrigatórios conferidos aqui (o "required" do navegador aceita só
+// espaço e o aviso dele é discreto). Na entrega, o endereço é obrigatório.
+const tried = ref(false)
+const missingFields = computed(() => {
+  const f = form.value
+  const blank = (v) => !String(v ?? '').trim()
+  const list = []
+  if (blank(f.name)) list.push({ key: 'name', label: 'seu nome' })
+  if (String(f.phone ?? '').replace(/\D/g, '').length < 10) list.push({ key: 'phone', label: 'seu WhatsApp com DDD' })
+  if (f.mode === 'entrega') {
+    if (blank(f.street)) list.push({ key: 'street', label: 'a rua' })
+    if (blank(f.number)) list.push({ key: 'number', label: 'o número' })
+    if (hasZones.value && !f.zone) list.push({ key: 'zone', label: 'o bairro' })
+    else if ((!hasZones.value || otherZone.value) && blank(f.district)) list.push({ key: 'district', label: 'o bairro' })
+    if (blank(f.reference)) list.push({ key: 'reference', label: 'o ponto de referência' })
+  }
+  return list
+})
+const isMissing = (key) => tried.value && missingFields.value.some((m) => m.key === key)
+const missingText = computed(() => {
+  const l = missingFields.value.map((m) => m.label)
+  return l.length > 1 ? `${l.slice(0, -1).join(', ')} e ${l[l.length - 1]}` : l[0]
+})
+
 async function send() {
   error.value = ''
+  if (missingFields.value.length) {
+    tried.value = true
+    // Leva até o primeiro campo que falta.
+    requestAnimationFrame(() => document.querySelector('.sheet .invalid')?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+    return
+  }
   if (belowMinimum.value) { error.value = `O pedido mínimo é ${money(store.value.min_order)}.`; return }
   if (form.value.payment === 'dinheiro' && Number(form.value.change) && Number(form.value.change) < total.value) {
     error.value = `O troco precisa ser para um valor maior que o total (${money(total.value)}).`; return
@@ -616,7 +646,7 @@ function scrollTo(id) {
           <button v-if="!mustSend" class="btn secondary block" style="margin-top: 10px" @click="finish">Fazer outro pedido</button>
         </div>
 
-        <form v-else @submit.prevent="send">
+        <form v-else novalidate @submit.prevent="send">
           <div class="spread" style="margin-bottom: 12px">
             <h2 style="margin: 0">Sua sacola</h2>
             <button type="button" class="btn small secondary" @click="checkoutOpen = false">Continuar comprando</button>
@@ -644,19 +674,19 @@ function scrollTo(id) {
           </p>
 
           <div class="row" style="margin-top: 16px">
-            <div class="field"><label>Seu nome</label><input v-model="form.name" required autocomplete="name" /></div>
-            <div class="field"><label>WhatsApp</label><input v-model="form.phone" type="tel" required autocomplete="tel" /></div>
+            <div class="field"><label>Seu nome *</label><input v-model="form.name" required autocomplete="name" :class="{ invalid: isMissing('name') }" /></div>
+            <div class="field"><label>WhatsApp *</label><input v-model="form.phone" type="tel" required autocomplete="tel" placeholder="(21) 99999-9999" :class="{ invalid: isMissing('phone') }" /></div>
           </div>
 
           <template v-if="form.mode === 'entrega'">
             <div class="row">
-              <div class="field" style="flex-basis: 240px"><label>Rua</label><input v-model="form.street" required autocomplete="address-line1" /></div>
-              <div class="field" style="max-width: 110px"><label>Número</label><input v-model="form.number" required /></div>
+              <div class="field" style="flex-basis: 240px"><label>Rua *</label><input v-model="form.street" required autocomplete="address-line1" :class="{ invalid: isMissing('street') }" /></div>
+              <div class="field" style="max-width: 110px"><label>Número *</label><input v-model="form.number" required :class="{ invalid: isMissing('number') }" /></div>
             </div>
             <div class="row">
               <div v-if="hasZones" class="field" style="flex: 1 1 100%">
-                <label>Bairro</label>
-                <select v-model="form.zone" required>
+                <label>Bairro *</label>
+                <select v-model="form.zone" required :class="{ invalid: isMissing('zone') }">
                   <option value="" disabled>Escolha o bairro</option>
                   <option v-for="z in zones" :key="z.id" :value="z.id">
                     {{ z.name }} · {{ Number(z.fee) ? money(z.fee) : 'grátis' }}
@@ -664,12 +694,12 @@ function scrollTo(id) {
                   <option v-if="allowOther" :value="OTHER">Meu bairro não está na lista</option>
                 </select>
                 <template v-if="otherZone">
-                  <input v-model="form.district" required placeholder="Digite seu bairro" style="margin-top: 8px" />
+                  <input v-model="form.district" required placeholder="Digite seu bairro" style="margin-top: 8px" :class="{ invalid: isMissing('district') }" />
                   <small class="muted">A loja te informa a taxa de entrega pelo WhatsApp.</small>
                 </template>
               </div>
-              <div v-else class="field"><label>Bairro</label><input v-model="form.district" required /></div>
-              <div class="field"><label>Ponto de referência</label><input v-model="form.reference" required placeholder="Ex.: perto da padaria, portão azul" /></div>
+              <div v-else class="field"><label>Bairro *</label><input v-model="form.district" required :class="{ invalid: isMissing('district') }" /></div>
+              <div class="field"><label>Ponto de referência *</label><input v-model="form.reference" required placeholder="Ex.: perto da padaria, portão azul" :class="{ invalid: isMissing('reference') }" /></div>
             </div>
           </template>
 
@@ -722,6 +752,10 @@ function scrollTo(id) {
 
           <div v-if="belowMinimum" class="notice">Faltam {{ money(store.min_order - subtotal) }} para o pedido mínimo de {{ money(store.min_order) }}.</div>
           <div v-if="error" class="error">{{ error }}</div>
+          <div v-if="tried && missingFields.length" class="action-needed missing-alert" role="alert" style="margin: 0 0 12px">
+            <Icon name="ban" />
+            <span><strong>Ação necessária</strong>Falta preencher {{ missingText }}{{ form.mode === 'entrega' ? ' pra loja saber onde entregar' : '' }}.</span>
+          </div>
 
           <div v-if="business.phone" class="action-needed" style="margin: 0 0 12px">
             <Icon name="whatsapp" />
@@ -817,6 +851,9 @@ function scrollTo(id) {
 .picker-foot { position: sticky; bottom: calc(-22px - env(safe-area-inset-bottom)); display: flex; gap: 12px; align-items: center;
   margin: 16px -18px calc(-22px - env(safe-area-inset-bottom)); padding: 14px 18px calc(14px + env(safe-area-inset-bottom));
   background: #0a1426; border-top: 1px solid var(--border); }
+.sheet .invalid { border-color: var(--danger) !important; box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.18); }
+.missing-alert { border-color: rgba(248, 113, 113, 0.55); background: rgba(248, 113, 113, 0.1); }
+.missing-alert svg, .missing-alert strong { color: #fca5a5; }
 .card-note { margin: 0 0 14px; padding: 10px 12px; border-radius: 12px; font-size: 0.86rem; background: var(--surface); border: 1px solid var(--border); }
 .pix-box { margin: 4px 0 14px; padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(50, 188, 173, 0.45); background: rgba(50, 188, 173, 0.1); text-align: left; }
 .pix-box small { display: block; color: var(--silver); font-size: 0.84rem; line-height: 1.4; }
