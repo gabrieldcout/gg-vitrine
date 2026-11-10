@@ -5,6 +5,8 @@ import { money, formatDate, todayISO, BUSINESS_STATUS, SUBSCRIPTION_STATUS } fro
 import { ask } from '@/lib/confirm'
 import Icon from '@/components/Icon.vue'
 import { toast } from '@/lib/toast'
+import { waLink } from '@/lib/whatsapp'
+import { APP_NAME, APP_DOMAIN } from '@/config/brand'
 
 const rows = ref([])
 const plans = ref([])
@@ -46,9 +48,47 @@ async function call(fn, args) {
 const unconfirmed = computed(() => rows.value.filter((r) => 'email_confirmed_at' in r && !r.email_confirmed_at))
 async function confirmEmail(b) {
   if (!await ask(`Confirmar o e-mail ${b.owner_email} de ${b.name}?
-Depois disso o cliente já entra com o e-mail e a senha que cadastrou.`,
+Depois disso o cliente já entra com o e-mail e a senha que cadastrou${b.plan_id ? '' : ', e os 7 dias grátis começam'}.`,
     { confirmLabel: 'Confirmar e-mail' })) return
-  if (await call('admin_confirm_email', { p_owner: b.owner_id })) toast(`E-mail de ${b.name} confirmado.`)
+  const win = b.phone ? window.open('', '_blank') : null   // abre antes do await (celular bloqueia depois)
+  if (await call('admin_confirm_email', { p_owner: b.owner_id })) {
+    toast(`E-mail de ${b.name} confirmado.`)
+    sendWelcome(b, win)
+  } else win?.close()
+}
+
+// Sem plano (ou só escolheu e não pagou): libera o teste de 7 dias (0035).
+const canTrial = (b) => b.status === 'approved' && (!b.plan_id || ['pending_payment', 'canceled'].includes(b.subscription_status))
+async function startTrial(b) {
+  if (!await ask(`Liberar 7 dias grátis pra ${b.name}?\nA vitrine entra no ar na hora e o WhatsApp do cliente abre com o aviso pronto.`,
+    { confirmLabel: 'Liberar 7 dias' })) return
+  const win = b.phone ? window.open('', '_blank') : null
+  if (await call('admin_start_trial', { p_owner: b.owner_id })) {
+    toast(`${b.name} liberada por 7 dias.`)
+    sendWelcome(b, win)
+  } else {
+    win?.close()
+    if (/admin_start_trial/.test(error.value)) error.value = 'Rode a migration 0035 no Supabase pra liberar o teste por aqui.'
+  }
+}
+
+// Aviso pro dono no WhatsApp, com a mensagem pronta (é só tocar em enviar).
+function welcomeText(b) {
+  return `Olá! Aqui é da ${APP_NAME} 👋\n\n` +
+    `Sua vitrine da *${b.name}* já está liberada, com *7 dias grátis* pra você testar tudo! 🎉\n\n` +
+    `🔗 Seu link: ${APP_DOMAIN}/${b.slug}\n\n` +
+    `Pra começar, entre no painel em ${APP_DOMAIN}/entrar (com o e-mail e a senha do cadastro) e preencha:\n` +
+    (b.kind === 'cardapio'
+      ? '1. Seus *produtos*, com foto e preço\n2. O *horário* de funcionamento\n3. *Entrega*, bairros e taxas\n4. Sua *logo* e o endereço\n\n'
+      : '1. Seus *serviços*, com preço e duração\n2. Os *horários* de atendimento\n3. Quem atende (*profissionais*)\n4. Sua *logo* e o endereço\n\n') +
+    'Se preferir, me manda essas informações por aqui que eu monto tudo pra você. Qualquer dúvida, é só chamar!'
+}
+function welcomeLink(b) { return b.phone ? waLink(b.phone, welcomeText(b)) : null }
+function sendWelcome(b, win) {
+  const link = welcomeLink(b)
+  if (!link) return
+  if (win) win.location.href = link
+  else window.open(link, '_blank')
 }
 
 function setStatus(b, status) {
@@ -225,7 +265,7 @@ async function savePayment() {
                 <small class="muted">{{ SUBSCRIPTION_STATUS[b.subscription_status] }}</small>
                 <br v-if="b.current_period_end" /><small v-if="b.current_period_end" class="muted">até {{ formatDate(b.current_period_end) }}</small>
               </template>
-              <span v-else class="muted">—</span>
+              <span v-else class="badge yellow">Sem plano</span>
             </td>
             <td>
               <template v-if="b.plan_id">
@@ -242,6 +282,10 @@ async function savePayment() {
             <td>
               <div class="chips">
                 <button v-if="'email_confirmed_at' in b && !b.email_confirmed_at" class="btn small" @click="confirmEmail(b)">Confirmar e-mail</button>
+                <button v-else-if="canTrial(b)" class="btn small" @click="startTrial(b)">Liberar 7 dias</button>
+                <a v-if="welcomeLink(b)" class="btn small secondary" :href="welcomeLink(b)" target="_blank" rel="noopener" title="Abre o WhatsApp do cliente com o aviso de vitrine liberada">
+                  <Icon name="whatsapp" style="width: 14px; height: 14px" />Avisar
+                </a>
                 <template v-if="b.status === 'pending'">
                   <button class="btn small" @click="setStatus(b, 'approved')">Aprovar</button>
                   <button class="btn small secondary" @click="setStatus(b, 'rejected')">Recusar</button>
