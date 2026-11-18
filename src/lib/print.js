@@ -95,7 +95,7 @@ export function printOrder(o, business) {
   const tz = business.timezone
   const items = (o.order_items ?? []).map((i) =>
     `<div class="row"><span>${esc(i.qty)}x ${esc(i.name)}</span><strong>${esc(money(i.total))}</strong></div>` +
-    (i.addons ?? []).map((a) => `<div class="extra">+ ${esc(a.name)}</div>`).join('') +
+    (i.addons ?? []).map((a) => `<div class="extra">+ ${a.qty > 1 ? `${esc(a.qty)}x ` : ''}${esc(a.name)}</div>`).join('') +
     (i.note ? `<div class="extra">Obs.: ${esc(i.note)}</div>` : '')).join('')
   const change = o.change_for ? ` · troco p/ ${esc(money(o.change_for))}` : ''
   printHtml(`Pedido #${o.number}`, `

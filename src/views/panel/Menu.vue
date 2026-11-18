@@ -50,7 +50,7 @@ function copyAddons() {
   // Ids novos: cada produto tem os seus.
   editing.value.addon_groups.push(...src.addon_groups.map((g) => ({
     id: newId(), name: g.name, min: Number(g.min) || 0, max: g.max ?? '',
-    options: g.options.map((o) => ({ id: newId(), name: o.name, price: o.price })),
+    options: g.options.map((o) => ({ id: newId(), name: o.name, price: o.price, max_qty: o.max_qty ?? '' })),
   })))
   copyFrom.value = ''
 }
@@ -60,12 +60,18 @@ function cleanGroups(groups) {
   for (const g of groups) {
     const options = g.options
       .filter((o) => o.name.trim())
-      .map((o) => ({ id: o.id, name: o.name.trim().slice(0, 60), price: Math.max(0, Number(o.price) || 0) }))
+      .map((o) => {
+        const opt = { id: o.id, name: o.name.trim().slice(0, 60), price: Math.max(0, Number(o.price) || 0) }
+        const q = Math.min(Number(o.max_qty) || 1, 10)
+        if (q > 1) opt.max_qty = q   // mais de 1 unidade: a vitrine mostra + e −
+        return opt
+      })
     if (!g.name.trim() && !options.length) continue
     if (!g.name.trim()) throw new Error('Dê um nome pra cada grupo de adicionais (ex.: Ingredientes adicionais).')
     if (!options.length) throw new Error(`O grupo "${g.name.trim()}" precisa de pelo menos uma opção.`)
-    const max = g.max === '' || g.max == null ? null : Math.max(1, Math.min(Number(g.max), options.length))
-    const min = Math.max(0, Math.min(Number(g.min) || 0, max ?? options.length, options.length))
+    const units = options.reduce((n, o) => n + (o.max_qty || 1), 0)   // quantas unidades cabem no total
+    const max = g.max === '' || g.max == null ? null : Math.max(1, Math.min(Number(g.max), units))
+    const min = Math.max(0, Math.min(Number(g.min) || 0, max ?? units, units))
     out.push({ id: g.id, name: g.name.trim().slice(0, 60), min, max, options })
   }
   return out
@@ -262,6 +268,7 @@ async function uploadPhoto(event) {
           <div v-for="(o, oi) in g.options" :key="o.id" class="addon-option">
             <input v-model="o.name" maxlength="60" placeholder="Ex.: Cheddar" aria-label="Nome do adicional" />
             <div class="addon-price"><span>+ R$</span><input v-model="o.price" type="number" min="0" step="0.01" placeholder="0,00" aria-label="Preço do adicional" /></div>
+            <div class="addon-qty" title="Quantas unidades desse adicional o cliente pode pôr (com + e − na vitrine)"><span>até</span><input v-model="o.max_qty" type="number" min="1" max="10" placeholder="1" aria-label="Máximo de unidades" /></div>
             <button type="button" class="btn small secondary" title="Tirar opção" @click="g.options.splice(oi, 1)">✕</button>
           </div>
           <div class="chips" style="margin-top: 8px">
@@ -369,6 +376,9 @@ async function uploadPhoto(event) {
 .addon-hint { display: block; margin: 4px 0 8px; }
 .addon-option { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
 .addon-option > input { flex: 1; min-width: 0; }
+.addon-qty { display: flex; align-items: center; gap: 4px; width: 78px; flex-shrink: 0; }
+.addon-qty span { color: var(--muted); font-size: 0.8rem; }
+.addon-qty input { min-width: 0; }
 .addon-price { display: flex; align-items: center; gap: 6px; width: 140px; flex-shrink: 0; }
 .addon-price span { color: var(--muted); font-size: 0.85rem; white-space: nowrap; }
 .addon-price input { min-width: 0; }

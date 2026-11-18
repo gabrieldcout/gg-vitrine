@@ -60,15 +60,22 @@ const cart = ref({})
 const itemsById = computed(() => Object.fromEntries(allItems.value.map((i) => [i.id, i])))
 const groupsOf = (item) => (item.addon_groups ?? []).filter((g) => g.options?.length)
 const hasAddons = (item) => groupsOf(item).length > 0
+// ids pode repetir: cada repetição é mais uma unidade (até o max_qty da opção).
+const maxQty = (o) => Math.max(1, Number(o.max_qty) || 1)
 function addonObjs(item, ids) {
-  return groupsOf(item).flatMap((g) => g.options.filter((o) => ids.includes(o.id))
-    .map((o) => ({ id: o.id, group: g.name, name: o.name, price: Number(o.price) || 0 })))
+  return groupsOf(item).flatMap((g) => g.options
+    .map((o) => ({ o, qty: Math.min(ids.filter((id) => id === o.id).length, maxQty(o)) }))
+    .filter(({ qty }) => qty > 0)
+    .map(({ o, qty }) => ({ id: o.id, group: g.name, name: o.name, price: Number(o.price) || 0, qty })))
 }
+const addonsTotal = (list) => list.reduce((sum, a) => sum + a.price * a.qty, 0)
+const expandIds = (list) => list.flatMap((a) => Array(a.qty).fill(a.id))
+const addonLabel = (a) => (a.qty > 1 ? `${a.qty}x ${a.name}` : a.name)
 const cartLines = computed(() => Object.entries(cart.value).map(([key, c]) => {
   const item = itemsById.value[c.itemId]
   if (!item) return null
   const addons = addonObjs(item, c.addons)
-  const unit = Number(item.price) + addons.reduce((sum, a) => sum + a.price, 0)
+  const unit = Number(item.price) + addonsTotal(addons)
   return { key, id: item.id, name: item.name, qty: c.qty, addons, note: c.note, unit, total: unit * c.qty }
 }).filter(Boolean))
 const cartCount = computed(() => cartLines.value.reduce((n, l) => n + l.qty, 0))
@@ -96,6 +103,19 @@ function openPicker(item) {
   picker.value = { item, chosen: Object.fromEntries(groupsOf(item).map((g) => [g.id, []])), note: '', qty: 1, tried: false }
 }
 const maxOf = (g) => (g.max == null || g.max === '' ? Infinity : Number(g.max))
+// Grupo em lista (alguma opção vale mais de 1 unidade): botões + e −.
+const isListGroup = (g) => g.options.some((o) => maxQty(o) > 1)
+const qtyIn = (g, o) => picker.value.chosen[g.id].filter((id) => id === o.id).length
+function incOption(g, o) {
+  const list = picker.value.chosen[g.id]
+  if (qtyIn(g, o) >= maxQty(o) || list.length >= maxOf(g)) return
+  list.push(o.id)
+}
+function decOption(g, o) {
+  const list = picker.value.chosen[g.id]
+  const i = list.lastIndexOf(o.id)
+  if (i >= 0) list.splice(i, 1)
+}
 function toggleOption(g, o) {
   const list = picker.value.chosen[g.id]
   const i = list.indexOf(o.id)
@@ -115,13 +135,13 @@ const missingGroups = computed(() => picker.value
 const pickerUnit = computed(() => {
   if (!picker.value) return 0
   const ids = Object.values(picker.value.chosen).flat()
-  return Number(picker.value.item.price) + addonObjs(picker.value.item, ids).reduce((sum, a) => sum + a.price, 0)
+  return Number(picker.value.item.price) + addonsTotal(addonObjs(picker.value.item, ids))
 })
 function confirmPicker() {
   const p = picker.value
   if (missingGroups.value.length) { p.tried = true; return }
   // Mesma ordem dos grupos/opções do produto, pra combinação igual cair na mesma linha.
-  const ids = addonObjs(p.item, Object.values(p.chosen).flat()).map((a) => a.id)
+  const ids = expandIds(addonObjs(p.item, Object.values(p.chosen).flat()))
   const note = p.note.trim().slice(0, 200)
   const key = `${p.item.id}|${ids.join(',')}|${note}`
   bump(key, p.qty, { itemId: p.item.id, qty: 0, addons: ids, note })
@@ -253,7 +273,10 @@ function buildMessage(order) {
   lines.push('', '📝 *Produtos*')
   for (const l of order.items) {
     lines.push(`*${l.qty}x ${l.name}*  ${money(l.total)}`)
-    for (const a of l.addons ?? []) lines.push(`   + ${a.name}${Number(a.price) ? ` (${money(a.price)})` : ''}`)
+    for (const a of l.addons ?? []) {
+      const qty = Number(a.qty) || 1
+      lines.push(`   + ${qty > 1 ? `${qty}x ` : ''}${a.name}${Number(a.price) ? ` (${money(a.price * qty)})` : ''}`)
+    }
     if (l.note) lines.push(`   Obs.: ${l.note}`)
   }
 
@@ -345,7 +368,7 @@ const reorderLines = computed(() => (reorder.value?.lines ?? [])
     const item = itemsById.value[l.itemId]
     if (!item || !item.available) return null
     // Adicional que saiu do produto não volta.
-    const addons = addonObjs(item, l.addons ?? []).map((a) => a.id)
+    const addons = expandIds(addonObjs(item, l.addons ?? []))
     return { ...l, item, addons }
   }).filter(Boolean))
 const reorderSummary = computed(() => reorderLines.value.map((l) => `${l.qty}x ${l.item.name}`).join(', '))
@@ -584,7 +607,21 @@ function scrollTo(id) {
             <strong>{{ g.name }}</strong>
             <small>{{ groupRule(g) }}</small>
           </div>
-          <div class="pick-options">
+          <div v-if="isListGroup(g)" class="pick-list">
+            <div v-for="o in g.options" :key="o.id" class="pick-row" :class="{ selected: qtyIn(g, o) }">
+              <span><strong>{{ o.name }}</strong><small v-if="Number(o.price)">+ {{ money(o.price) }}</small></span>
+              <span class="pick-qty">
+                <template v-if="qtyIn(g, o)">
+                  <button type="button" :aria-label="`Tirar ${o.name}`" @click="decOption(g, o)"><Icon name="minus" /></button>
+                  <strong>{{ qtyIn(g, o) }}</strong>
+                </template>
+                <button type="button" :aria-label="`Pôr ${o.name}`"
+                        :disabled="qtyIn(g, o) >= maxQty(o) || picker.chosen[g.id].length >= maxOf(g)"
+                        @click="incOption(g, o)"><Icon name="plus" /></button>
+              </span>
+            </div>
+          </div>
+          <div v-else class="pick-options">
             <button v-for="o in g.options" :key="o.id" type="button" class="pick-option"
                     :class="{ selected: picker.chosen[g.id].includes(o.id) }"
                     :disabled="!picker.chosen[g.id].includes(o.id) && maxOf(g) > 1 && picker.chosen[g.id].length >= maxOf(g)"
@@ -666,7 +703,7 @@ function scrollTo(id) {
             </div>
             <span style="flex: 1">
               {{ l.name }}
-              <small v-if="l.addons.length" class="line-extra">+ {{ l.addons.map((a) => a.name).join(', ') }}</small>
+              <small v-if="l.addons.length" class="line-extra">+ {{ l.addons.map(addonLabel).join(', ') }}</small>
               <small v-if="l.note" class="line-extra">Obs.: {{ l.note }}</small>
             </span>
             <strong>{{ money(l.total) }}</strong>
@@ -860,6 +897,18 @@ function scrollTo(id) {
 .pick-box { width: 20px; height: 20px; flex-shrink: 0; border-radius: 6px; border: 2px solid var(--border); display: grid; place-items: center; }
 .pick-option.selected .pick-box { background: var(--brand); border-color: var(--brand); color: var(--brand-contrast); }
 .pick-box svg { width: 13px; height: 13px; }
+.pick-list { margin-top: 6px; }
+.pick-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 2px; border-bottom: 1px solid var(--border); }
+.pick-row strong { display: block; font-size: 0.92rem; font-weight: 600; }
+.pick-row small { display: block; color: var(--muted); font-size: 0.82rem; }
+.pick-row.selected strong { color: var(--text); }
+.pick-qty { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.pick-qty strong { min-width: 16px; text-align: center; }
+.pick-qty button { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+  border: 1px solid var(--brand); background: var(--brand-soft); color: var(--brand-ink, var(--text)); }
+.pick-qty button:last-child { background: linear-gradient(120deg, var(--brand), var(--brand-strong)); color: var(--brand-contrast); border: none; }
+.pick-qty button:disabled { opacity: 0.35; cursor: not-allowed; }
+.pick-qty svg { width: 15px; height: 15px; }
 .pick-error { display: block; margin-top: 6px; color: var(--danger); }
 .picker-foot { position: sticky; bottom: calc(-22px - env(safe-area-inset-bottom)); display: flex; gap: 12px; align-items: center;
   margin: 16px -18px calc(-22px - env(safe-area-inset-bottom)); padding: 14px 18px calc(14px + env(safe-area-inset-bottom));

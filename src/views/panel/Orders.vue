@@ -329,7 +329,7 @@ function customerLink(o) {
 
       <ul class="items">
         <li v-for="(i, n) in o.order_items" :key="n"><strong>{{ i.qty }}x</strong> {{ i.name }} <span class="muted">{{ money(i.total) }}</span>
-          <small v-if="i.addons?.length" class="item-extra">+ {{ i.addons.map((a) => a.name).join(', ') }}</small>
+          <small v-if="i.addons?.length" class="item-extra">+ {{ i.addons.map((a) => (a.qty > 1 ? `${a.qty}x ${a.name}` : a.name)).join(', ') }}</small>
           <small v-if="i.note" class="item-extra">Obs.: {{ i.note }}</small>
         </li>
       </ul>
