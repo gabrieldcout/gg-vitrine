@@ -41,7 +41,7 @@ const copyFrom = ref('')
 const otherItemsWithAddons = computed(() => items.value.filter((i) => i.id !== editing.value?.id && i.addon_groups?.length))
 
 function addGroup() {
-  editing.value.addon_groups.push({ id: newId(), name: '', min: 0, max: 3, options: [{ id: newId(), name: '', price: '' }] })
+  editing.value.addon_groups.push({ id: newId(), name: '', min: 0, max: 3, list: false, options: [{ id: newId(), name: '', price: '' }] })
 }
 function addOption(g) { g.options.push({ id: newId(), name: '', price: '' }) }
 function copyAddons() {
@@ -49,7 +49,7 @@ function copyAddons() {
   if (!src) return
   // Ids novos: cada produto tem os seus.
   editing.value.addon_groups.push(...src.addon_groups.map((g) => ({
-    id: newId(), name: g.name, min: Number(g.min) || 0, max: g.max ?? '',
+    id: newId(), name: g.name, min: Number(g.min) || 0, max: g.max ?? '', list: !!g.list,
     options: g.options.map((o) => ({ id: newId(), name: o.name, price: o.price, max_qty: o.max_qty ?? '' })),
   })))
   copyFrom.value = ''
@@ -72,7 +72,9 @@ function cleanGroups(groups) {
     const units = options.reduce((n, o) => n + (o.max_qty || 1), 0)   // quantas unidades cabem no total
     const max = g.max === '' || g.max == null ? null : Math.max(1, Math.min(Number(g.max), units))
     const min = Math.max(0, Math.min(Number(g.min) || 0, max ?? units, units))
-    out.push({ id: g.id, name: g.name.trim().slice(0, 60), min, max, options })
+    const group = { id: g.id, name: g.name.trim().slice(0, 60), min, max, options }
+    if (g.list) group.list = true   // vitrine mostra lista com + e − em vez de quadradinhos
+    out.push(group)
   }
   return out
 }
@@ -144,7 +146,7 @@ function newItem(category) {
 function editItem(i) {
   const { id, category_id, name, description, price, photo_url, available } = i
   const addon_groups = (i.addon_groups ?? []).map((g) => ({
-    id: g.id, name: g.name, min: Number(g.min) || 0, max: g.max ?? '',
+    id: g.id, name: g.name, min: Number(g.min) || 0, max: g.max ?? '', list: !!g.list,
     options: g.options.map((o) => ({ ...o })),
   }))
   editing.value = { id, category_id, name, description, price, photo_url, available, addon_groups, featured: !!i.featured }
@@ -264,6 +266,7 @@ async function uploadPhoto(event) {
           </div>
           <div class="field addon-min"><label>Mínimo de escolhas <small>(0 = opcional · 2 = "escolha 2 sabores")</small></label>
             <input v-model="g.min" type="number" min="0" placeholder="0" /></div>
+          <label class="addon-list"><input v-model="g.list" type="checkbox" /> Mostrar como lista com + e − (bom pra adicionais pagos)</label>
           <small class="muted addon-hint">{{ groupHint(g) }}</small>
           <div v-for="(o, oi) in g.options" :key="o.id" class="addon-option">
             <input v-model="o.name" maxlength="60" placeholder="Ex.: Cheddar" aria-label="Nome do adicional" />
@@ -373,6 +376,7 @@ async function uploadPhoto(event) {
 .addons-head small { display: block; margin-top: 2px; }
 .addon-group { padding: 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); }
 .addon-min { max-width: 260px; margin-bottom: 0; }
+.addon-list { display: flex; gap: 8px; align-items: center; font-size: 0.88rem; margin-top: 8px; }
 .addon-hint { display: block; margin: 4px 0 8px; }
 .addon-option { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
 .addon-option > input { flex: 1; min-width: 0; }

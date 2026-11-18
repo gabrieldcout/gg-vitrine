@@ -104,7 +104,7 @@ function openPicker(item) {
 }
 const maxOf = (g) => (g.max == null || g.max === '' ? Infinity : Number(g.max))
 // Grupo em lista (alguma opção vale mais de 1 unidade): botões + e −.
-const isListGroup = (g) => g.options.some((o) => maxQty(o) > 1)
+const isListGroup = (g) => g.list === true || g.options.some((o) => maxQty(o) > 1)
 const qtyIn = (g, o) => picker.value.chosen[g.id].filter((id) => id === o.id).length
 function incOption(g, o) {
   const list = picker.value.chosen[g.id]
