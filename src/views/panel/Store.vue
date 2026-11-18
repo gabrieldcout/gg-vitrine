@@ -43,6 +43,9 @@ function flash(msg) {
   setTimeout(() => { if (saved.value === msg) saved.value = '' }, 3000)
 }
 
+// O botão Online/Offline do topo do painel também muda isso.
+watch(() => biz.business.accepting_orders, (v) => { settings.value.accepting_orders = v })
+
 async function togglePause() {
   error.value = ''
   const value = !settings.value.accepting_orders

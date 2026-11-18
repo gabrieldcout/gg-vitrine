@@ -11,6 +11,7 @@ import { brandVars } from '@/lib/colors'
 import AppLogo from '@/components/AppLogo.vue'
 import Icon from '@/components/Icon.vue'
 import BackButton from '@/components/BackButton.vue'
+import StoreOnlineSwitch from '@/components/StoreOnlineSwitch.vue'
 import { navFor, homeFor, routeAllowed } from '@/lib/panel-nav'
 import { startAutoPrint } from '@/lib/auto-print'
 
@@ -320,6 +321,7 @@ async function requestBusiness() {
         <span v-else class="initial-sm">{{ biz.business.name.charAt(0).toUpperCase() }}</span>
         <span class="mobile-brand-name">{{ biz.business.name }}</span>
       </div>
+      <StoreOnlineSwitch v-if="kind === 'cardapio' && biz.live" compact />
       <RouterLink to="/painel/perfil" class="mobile-avatar" aria-label="Perfil">
         <Icon name="store" />
       </RouterLink>
@@ -342,6 +344,7 @@ async function requestBusiness() {
           <span class="plan-dot" />
           {{ statusPill.label }}
         </span>
+        <StoreOnlineSwitch v-if="kind === 'cardapio' && biz.live" class="side-online" />
       </div>
 
       <!-- Navegação agrupada -->
@@ -699,6 +702,7 @@ async function requestBusiness() {
   letter-spacing: 0.02em;
   border: 1px solid;
 }
+.side-online { display: flex; width: fit-content; margin-top: 10px; }
 .side-plan-pill .plan-dot {
   width: 6px; height: 6px; border-radius: 50%;
   background: currentColor;
