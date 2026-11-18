@@ -38,7 +38,8 @@ const agenda = {
   ],
 }
 
-const allHours = [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({ weekday, start: '00:00:00', end: '23:59:00' }))
+// Terça fechada pra mostrar o "Fechado" na lista de horários.
+const allHours = [0, 1, 3, 4, 5, 6].map((weekday) => ({ weekday, start: '18:30:00', end: '23:59:00' }))
 const cardapio = {
   ...agenda, kind: 'cardapio', name: 'Lanchonete do Beto', category: 'Lanchonete', primary_color: '#dc2626',
   loyalty: { required: 8, reward: '1 lanche grátis' }, services: [], professionals: [],

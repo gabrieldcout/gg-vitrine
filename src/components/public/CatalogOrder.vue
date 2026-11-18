@@ -32,7 +32,10 @@ const closedReason = computed(() => {
   }
   return ''
 })
-const schedule = computed(() => hoursSummary(store.value.hours))
+// Só mostra a lista se a loja tiver algum horário; o dia de hoje fica destacado.
+const schedule = computed(() => (store.value.hours?.length ? hoursSummary(store.value.hours) : []))
+const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const todayWeekday = computed(() => (tick.value, DOW.indexOf(new Date().toLocaleDateString('en-US', { weekday: 'short', timeZone: tz.value }))))
 // Taxa por bairro: com bairros cadastrados, o cliente escolhe numa lista.
 const zones = computed(() => store.value.zones ?? [])
 const hasZones = computed(() => zones.value.length > 0)
@@ -482,7 +485,11 @@ function scrollTo(id) {
       <button v-if="schedule.length" class="link-btn" @click="showHours = !showHours">{{ showHours ? 'ocultar horários' : 'ver horários' }}</button>
     </div>
     <div v-if="showHours" class="card hours">
-      <div v-for="d in schedule" :key="d.name" class="spread"><span>{{ d.name }}</span><span class="muted">{{ d.ranges.join(' e ') }}</span></div>
+      <div v-for="d in schedule" :key="d.name" class="spread hours-day" :class="{ today: d.weekday === todayWeekday, closed: d.closed }">
+        <span>{{ d.name }}<small v-if="d.weekday === todayWeekday"> · hoje</small></span>
+        <span v-if="d.closed" class="hours-closed">Fechado</span>
+        <span v-else class="muted">{{ d.ranges.join(' e ') }}</span>
+      </div>
     </div>
 
     <div v-if="closedReason" class="notice closed">{{ closedReason }}</div>
@@ -773,7 +780,13 @@ function scrollTo(id) {
 
 <style scoped>
 .status-row { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; font-size: 0.88rem; }
-.hours { display: grid; gap: 6px; font-size: 0.9rem; margin-bottom: 14px; }
+.hours { display: grid; gap: 2px; font-size: 0.9rem; margin-bottom: 14px; }
+.hours-day { padding: 6px 8px; border-radius: 8px; }
+.hours-day.today { background: var(--brand-soft); font-weight: 600; }
+.hours-day.today small { color: var(--brand-ink, var(--brand)); font-weight: 600; }
+.hours-day.closed > span:first-child { color: #fca5a5; }
+.hours-closed { padding: 2px 10px; border-radius: 999px; font-size: 0.8rem; font-weight: 700;
+  color: #fca5a5; background: rgba(248, 113, 113, 0.14); border: 1px solid rgba(248, 113, 113, 0.4); }
 .closed { text-align: center; font-weight: 600; }
 .info { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
 .info span { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); font-size: 0.85rem; color: var(--silver); }

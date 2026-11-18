@@ -46,9 +46,11 @@ export function nextOpening(hours, tz) {
 }
 
 // Resumo dos horários para exibir, agrupado por dia.
+// Os 7 dias da semana; dia sem horário vem com closed: true (a vitrine mostra "Fechado").
 export function hoursSummary(hours) {
-  return WEEKDAYS.map((name, weekday) => ({
-    name,
-    ranges: hours.filter((h) => h.weekday === weekday).map((h) => `${h.start.slice(0, 5)}–${h.end.slice(0, 5)}`),
-  })).filter((d) => d.ranges.length)
+  const fmt = (t) => (t.slice(0, 5) === '23:59' || t.slice(0, 5) === '00:00' ? 'meia-noite' : t.slice(0, 5))
+  return WEEKDAYS.map((name, weekday) => {
+    const ranges = hours.filter((h) => h.weekday === weekday).map((h) => `${h.start.slice(0, 5)} – ${fmt(h.end)}`)
+    return { name, weekday, ranges, closed: !ranges.length }
+  })
 }
