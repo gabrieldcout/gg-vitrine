@@ -6,7 +6,8 @@ import { ask } from '@/lib/confirm'
 import Icon from '@/components/Icon.vue'
 import { toast } from '@/lib/toast'
 import { waLink } from '@/lib/whatsapp'
-import { APP_NAME, APP_DOMAIN } from '@/config/brand'
+import { APP_NAME, APP_DOMAIN, CATEGORIES, MENU_CATEGORIES, kindForCategory } from '@/config/brand'
+import { slugify } from '@/lib/format'
 
 const rows = ref([])
 const plans = ref([])
@@ -55,6 +56,48 @@ Depois disso o cliente já entra com o e-mail e a senha que cadastrou${b.plan_id
     toast(`E-mail de ${b.name} confirmado.`)
     sendWelcome(b, win)
   } else win?.close()
+}
+
+// ---- Nova vitrine pra um cliente, sem ele se cadastrar (função admin-create-client) ----
+const KIND_LABELS = { agenda: 'Agenda (agendamento)', cardapio: 'Cardápio (pedidos)', fila: 'Fila (por ordem de chegada)' }
+const blankClient = () => ({ name: '', slug: '', category: CATEGORIES[0], kind: 'agenda', phone: '', email: '', password: '' })
+const newClient = ref(null)       // formulário aberto
+const createdClient = ref(null)   // acesso gerado, pra enviar ao cliente
+const creating = ref(false)
+const slugTouched = ref(false)
+function openNewClient() { newClient.value = blankClient(); createdClient.value = null; slugTouched.value = false }
+function onClientName() { if (!slugTouched.value) newClient.value.slug = slugify(newClient.value.name) }
+function onClientCategory() { newClient.value.kind = kindForCategory(newClient.value.category) }
+async function createClient() {
+  const c = newClient.value
+  error.value = ''
+  if (!c.name.trim() || !c.email.trim()) { error.value = 'Preencha o nome do estabelecimento e o e-mail do cliente.'; return }
+  creating.value = true
+  const { data, error: err } = await supabase.functions.invoke('admin-create-client', { body: { ...c, slug: slugify(c.slug || c.name) } })
+  creating.value = false
+  // Erro da função vem no corpo da resposta.
+  let msg = data?.error
+  if (!msg && err) {
+    try { msg = (await err.context?.json())?.error } catch { /* sem corpo */ }
+    msg ||= /Failed to send|not found|404/i.test(err.message) ? 'A função admin-create-client ainda não foi publicada no Supabase.' : err.message
+  }
+  if (msg) { error.value = msg; return }
+  createdClient.value = { ...data, name: c.name.trim(), phone: c.phone, kind: c.kind }
+  newClient.value = null
+  toast(`Vitrine de ${c.name.trim()} criada e liberada por 7 dias.`)
+  load()
+}
+function accessText(c) {
+  return `Olá! Aqui é da ${APP_NAME} 👋\n\n` +
+    `Sua vitrine da *${c.name}* está pronta, com *7 dias grátis*! 🎉\n\n` +
+    `🔗 Seu link: ${APP_DOMAIN}/${c.slug}\n\n` +
+    `Pra entrar no seu painel: ${APP_DOMAIN}/entrar\n` +
+    `*E-mail:* ${c.email}\n*Senha:* ${c.password}\n\n` +
+    'Guarde essa senha. Qualquer dúvida, é só chamar!'
+}
+const accessLink = (c) => (c.phone ? waLink(c.phone, accessText(c)) : null)
+async function copyAccess(c) {
+  try { await navigator.clipboard.writeText(accessText(c).replace(/\*/g, '')); toast('Acesso copiado.') } catch { toast('Não deu pra copiar.', 'error') }
 }
 
 // Sem plano (ou só escolheu e não pagou): libera o teste de 7 dias (0035).
@@ -159,8 +202,56 @@ async function savePayment() {
 </script>
 
 <template>
-  <div class="page-header"><h1>Empresas</h1></div>
+  <div class="page-header spread">
+    <h1>Empresas</h1>
+    <button class="btn" @click="openNewClient"><Icon name="plus" style="width: 16px; height: 16px" />Nova vitrine pra cliente</button>
+  </div>
   <div v-if="error" class="error">{{ error }}</div>
+
+  <!-- Nova vitrine pra cliente -->
+  <form v-if="newClient" class="card new-client" @submit.prevent="createClient">
+    <div class="spread"><h3 style="margin: 0">Nova vitrine pra cliente</h3>
+      <button type="button" class="btn small secondary" @click="newClient = null">Fechar</button></div>
+    <p class="muted">O cliente não precisa se cadastrar: a conta já sai confirmada, a vitrine aprovada e com 7 dias grátis. Depois você manda o acesso pelo WhatsApp.</p>
+    <div class="row">
+      <div class="field" style="flex: 2 1 220px"><label>Nome do estabelecimento</label><input v-model="newClient.name" required @input="onClientName" /></div>
+      <div class="field" style="flex: 1 1 200px"><label>Link</label><input v-model="newClient.slug" @input="slugTouched = true" />
+        <small class="muted">{{ APP_DOMAIN }}/<strong>{{ slugify(newClient.slug || newClient.name) || 'link' }}</strong></small></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Categoria</label>
+        <select v-model="newClient.category" @change="onClientCategory">
+          <optgroup label="Agenda"><option v-for="c in CATEGORIES" :key="c">{{ c }}</option></optgroup>
+          <optgroup label="Cardápio"><option v-for="c in MENU_CATEGORIES" :key="c">{{ c }}</option></optgroup>
+        </select></div>
+      <div class="field"><label>Tipo da vitrine</label>
+        <select v-model="newClient.kind"><option v-for="(label, k) in KIND_LABELS" :key="k" :value="k">{{ label }}</option></select></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>WhatsApp do cliente</label><input v-model="newClient.phone" type="tel" placeholder="(21) 99999-9999" /></div>
+      <div class="field"><label>E-mail do cliente (vira o login)</label><input v-model="newClient.email" type="email" required /></div>
+      <div class="field"><label>Senha <small>(vazio = gera uma)</small></label><input v-model="newClient.password" placeholder="Ex.: Vitrine4821" /></div>
+    </div>
+    <button class="btn" :disabled="creating">{{ creating ? 'Criando...' : 'Criar vitrine e liberar 7 dias' }}</button>
+  </form>
+
+  <!-- Acesso criado -->
+  <div v-if="createdClient" class="card created-client">
+    <div class="spread"><h3 style="margin: 0">✅ Vitrine de {{ createdClient.name }} criada</h3>
+      <button type="button" class="btn small secondary" @click="createdClient = null">Fechar</button></div>
+    <div class="created-grid">
+      <span class="muted">Link</span><a :href="`/${createdClient.slug}`" target="_blank">{{ APP_DOMAIN }}/{{ createdClient.slug }}</a>
+      <span class="muted">E-mail</span><strong>{{ createdClient.email }}</strong>
+      <span class="muted">Senha</span><strong>{{ createdClient.password }}</strong>
+    </div>
+    <p class="muted">Anote a senha: ela só aparece agora. Monte a vitrine entrando com esse acesso, ou me peça o SQL.</p>
+    <div class="chips">
+      <a v-if="accessLink(createdClient)" class="btn" :href="accessLink(createdClient)" target="_blank" rel="noopener">
+        <Icon name="whatsapp" style="width: 16px; height: 16px" />Mandar acesso no WhatsApp
+      </a>
+      <button type="button" class="btn secondary" @click="copyAccess(createdClient)">Copiar acesso</button>
+    </div>
+  </div>
 
   <!-- Formulário: plano e preço -->
   <div v-if="editing" class="card">
@@ -304,3 +395,9 @@ async function savePayment() {
     </div>
   </div>
 </template>
+
+<style scoped>
+.new-client .row { margin-bottom: 4px; }
+.created-client { border-left: 3px solid var(--success); }
+.created-grid { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 12px 0; font-size: 0.95rem; }
+</style>
