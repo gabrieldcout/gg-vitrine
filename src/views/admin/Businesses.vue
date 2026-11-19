@@ -59,6 +59,8 @@ Depois disso o cliente já entra com o e-mail e a senha que cadastrou${b.plan_id
 }
 
 // ---- Nova vitrine pra um cliente, sem ele se cadastrar (função admin-create-client) ----
+// Nome com que a função foi publicada no Supabase (o endereço não muda depois).
+const CREATE_CLIENT_FN = 'admin-create-client-'
 const KIND_LABELS = { agenda: 'Agenda (agendamento)', cardapio: 'Cardápio (pedidos)', fila: 'Fila (por ordem de chegada)' }
 const blankClient = () => ({ name: '', slug: '', category: CATEGORIES[0], kind: 'agenda', phone: '', email: '', password: '' })
 const newClient = ref(null)       // formulário aberto
@@ -73,7 +75,7 @@ async function createClient() {
   error.value = ''
   if (!c.name.trim() || !c.email.trim()) { error.value = 'Preencha o nome do estabelecimento e o e-mail do cliente.'; return }
   creating.value = true
-  const { data, error: err } = await supabase.functions.invoke('admin-create-client', { body: { ...c, slug: slugify(c.slug || c.name) } })
+  const { data, error: err } = await supabase.functions.invoke(CREATE_CLIENT_FN, { body: { ...c, slug: slugify(c.slug || c.name) } })
   creating.value = false
   // Erro da função vem no corpo da resposta.
   let msg = data?.error
