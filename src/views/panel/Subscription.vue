@@ -158,6 +158,10 @@ async function cancelSubscription() {
     <span>{{ error }}</span>
   </div>
 
+  <RouterLink to="/painel/indique" class="ref-hint">
+    🎁 <span><strong>Indique e ganhe:</strong> cada indicação que assinar te dá 30% de desconto numa mensalidade.</span>
+  </RouterLink>
+
   <!-- Resumo do plano atual -->
   <div v-if="sub" class="sub-card">
     <div class="sub-card-head">
@@ -842,4 +846,9 @@ async function cancelSubscription() {
   .invoice-row { flex-wrap: wrap; }
   .invoice-row .btn { width: 100%; }
 }
+.ref-hint {
+  display: flex; gap: 8px; align-items: center; margin-bottom: 14px; padding: 10px 14px; border-radius: 12px;
+  background: var(--surface-2, rgba(127,127,127,.08)); color: inherit; text-decoration: none; font-size: 0.93rem;
+}
+.ref-hint:hover { filter: brightness(1.05); }
 </style>

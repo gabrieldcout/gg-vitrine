@@ -8,6 +8,7 @@ import BackButton from '@/components/BackButton.vue'
 import Icon from '@/components/Icon.vue'
 import { APP_DOMAIN, APP_NAME, CATEGORIES, MENU_CATEGORIES, SUPPORT_WHATSAPP, kindForCategory } from '@/config/brand'
 import { waLink } from '@/lib/whatsapp'
+import { getReferral } from '@/lib/referral'
 
 const router = useRouter()
 const setupLink = SUPPORT_WHATSAPP && waLink(SUPPORT_WHATSAPP, `Olá! Quero que o ${APP_NAME} monte minha vitrine.`)
@@ -20,6 +21,13 @@ const noCodeLink = computed(() => SUPPORT_WHATSAPP && waLink(SUPPORT_WHATSAPP,
   `*Estabelecimento:* ${form.value.name}
 *E-mail:* ${form.value.email}
 *Link:* ${APP_DOMAIN}/${slugify(form.value.slug)}`))
+// Veio pelo link de indicação de outra vitrine: ganha +10 dias de teste.
+const referredBy = getReferral()
+const referrerName = ref('')
+if (referredBy) {
+  supabase.rpc('get_public_business', { p_slug: referredBy })
+    .then(({ data }) => { referrerName.value = data?.name || data?.business?.name || '' })
+}
 const form = ref({ name: '', slug: '', category: CATEGORIES[0], phone: '', cpf: '', ownerName: '', email: '', password: '', accepted: false })
 
 function maskCPF(v) {
@@ -81,6 +89,7 @@ async function submit() {
           business_kind: kindForCategory(form.value.category),
           business_phone: form.value.phone,
           terms_accepted_at: new Date().toISOString(),
+          ...(referredBy ? { referred_by: referredBy } : {}),
         },
       },
     })
@@ -164,6 +173,9 @@ function startResendCooldown() {
         <p class="signup-sub muted">
           Preencha os dados do seu negócio e crie sua conta de acesso em 2 passos.
         </p>
+        <div v-if="referredBy" class="ref-banner">
+          🎁 <span>Você foi indicado{{ referrerName ? ` por ${referrerName}` : '' }}: ganha <strong>+10 dias</strong> no teste grátis, são <strong>17 dias</strong> antes de pagar.</span>
+        </div>
       </div>
 
       <!-- Tela de verificação por código -->
@@ -814,4 +826,9 @@ function startResendCooldown() {
 .no-code { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); text-align: center; font-size: 0.85rem; }
 .no-code p { margin: 0 0 10px; color: var(--silver); }
 .no-code small { display: block; margin-top: 8px; }
+.ref-banner {
+  display: flex; gap: 8px; align-items: flex-start; margin-top: 14px; padding: 12px 14px;
+  border-radius: 12px; background: color-mix(in srgb, var(--success, #16a34a) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--success, #16a34a) 35%, transparent); font-size: 0.95rem; text-align: left;
+}
 </style>

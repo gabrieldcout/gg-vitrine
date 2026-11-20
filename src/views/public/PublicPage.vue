@@ -165,7 +165,7 @@ onBeforeUnmount(() => io?.disconnect())
       </template>
 
       <div v-if="!business.features?.includes('sem_marca')" class="powered">
-        <span class="muted">Feito com</span> <AppLogo />
+        <span class="muted">Feito com</span> <AppLogo :to="`/?indique=${business.slug}`" />
       </div>
       <p class="privacy-note">
         Seus dados são usados só para este atendimento. <RouterLink to="/privacidade">Política de privacidade</RouterLink>

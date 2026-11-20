@@ -1,3 +1,4 @@
+import { captureReferral } from '@/lib/referral'
 import { createRouter, createWebHistory } from 'vue-router'
 import { session, isPlatformAdmin } from '@/lib/session'
 
@@ -33,6 +34,7 @@ const routes = [
       { path: 'lembretes', component: () => import('@/views/panel/Reminders.vue') },
       { path: 'divulgar', component: () => import('@/views/panel/Share.vue') },
       { path: 'perfil', component: () => import('@/views/panel/Profile.vue') },
+      { path: 'indique', component: () => import('@/views/panel/Referral.vue') },
       { path: 'assinatura', component: () => import('@/views/panel/Subscription.vue') },
       { path: 'comecar', component: () => import('@/views/panel/Onboarding.vue') },
       { path: 'tutorial', component: () => import('@/views/panel/Tutorial.vue') },
@@ -60,6 +62,7 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to) => {
+  if (to.query.indique) captureReferral(to.query)
   if (to.meta.requiresAuth && !session.user) {
     return { path: '/entrar', query: { redirect: to.fullPath } }
   }

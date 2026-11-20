@@ -73,7 +73,7 @@ const NAV_GROUPS = [
   { title: 'Agenda', match: ['/painel', '/painel/fila', '/painel/servicos', '/painel/profissionais', '/painel/horarios', '/painel/clientes', '/painel/bloqueios'] },
   { title: 'Loja', match: ['/painel/pedidos', '/painel/cardapio', '/painel/funcionamento', '/painel/impressao'] },
   { title: 'Divulgar', match: ['/painel/lembretes', '/painel/galeria', '/painel/avaliacoes', '/painel/fidelidade', '/painel/cupons', '/painel/promocao', '/painel/visitas', '/painel/divulgar'] },
-  { title: 'Conta', match: ['/painel/tutorial', '/painel/financeiro', '/painel/perfil', '/painel/assinatura'] },
+  { title: 'Conta', match: ['/painel/tutorial', '/painel/financeiro', '/painel/perfil', '/painel/indique', '/painel/assinatura'] },
 ]
 
 const nav = computed(() => navFor(kind.value).map((item) => ({
@@ -106,7 +106,7 @@ const currentPage = computed(() => nav.value.find((i) => i.to === route.path))
 // Fecha o menu mobile quando trocar de rota.
 watch(() => route.path, () => { mobileNavOpen.value = false })
 
-const FREE_WHEN_INACTIVE = ['/painel/assinatura', '/painel/perfil', '/painel/tutorial']
+const FREE_WHEN_INACTIVE = ['/painel/assinatura', '/painel/perfil', '/painel/tutorial', '/painel/indique']
 
 function enforceAccess() {
   // Bloqueado por atraso também entra no painel, mas só na tela de Assinatura (para pagar).

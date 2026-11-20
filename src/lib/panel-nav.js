@@ -26,6 +26,7 @@ export const PANEL_NAV = [
   { to: '/painel/tutorial', label: 'Tutorial', icon: 'sparkles', kinds: ['agenda'] },
   { to: '/painel/financeiro', label: 'Financeiro', icon: 'chart' },
   { to: '/painel/perfil', label: 'Perfil', icon: 'store' },
+  { to: '/painel/indique', label: 'Indique e ganhe', icon: 'gift' },
   { to: '/painel/assinatura', label: 'Assinatura', icon: 'card' },
 ]
 
